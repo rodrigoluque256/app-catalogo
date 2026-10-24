@@ -12,7 +12,8 @@
 | Frontend | Next.js 16 · React 19 · Tailwind 4 · Vitest · Playwright (e2e) |
 | Tenancy | Global Scope custom, una sola base, columna `store_id` |
 | Entorno local | Docker Compose ([backend/docker-compose.yml](backend/docker-compose.yml)): `app`, `queue`, `frontend`, `pgsql` |
-| Control de versiones | Repositorio git local (rama `main`), **sin commits todavía** (falta configurar la identidad) y sin remoto |
+| Control de versiones | GitHub privado [`rodrigoluque256/app-catalogo`](https://github.com/rodrigoluque256/app-catalogo) (rama `main`, SSH). Identidad local del repo: Rodrigo Luque &lt;rodrigoluque256@gmail.com&gt; |
+| CI | GitHub Actions en verde (backend + frontend) desde el commit `6b7aae2` |
 
 **Última verificación (2026-10-23):**
 
@@ -260,11 +261,11 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 ### P0 — antes de seguir desarrollando
 - [x] `.gitignore` revisados y endurecidos (raíz, backend, frontend) + `frontend/.dockerignore` sin secretos
 - [x] `git init -b main` en la raíz (verificado: `.env`, logs, sqlite, `vendor`, `node_modules` y `.next` ignorados; 270 archivos a rastrear, sin claves)
-- [ ] Configurar identidad de git (`user.name` / `user.email`, el usuario va a crear un email nuevo) y hacer el primer commit
-- [ ] Crear repositorio **privado** en GitHub, elegir autenticación (`gh` o SSH) y hacer push
+- [x] Identidad de git (solo este repo) y primer commit
+- [x] Repositorio **privado** en GitHub con autenticación SSH y push de `main`
 - [x] Variables `R2_*` en `backend/.env.example` (reemplazan el bloque `AWS_*` que no se usaba)
 - [x] Base separada para el e2e: perfil `e2e` + [bin/e2e.sh](backend/bin/e2e.sh). Verificado: 20/20 pasos OK y la base de desarrollo sin cambios
-- [~] CI escrito en [.github/workflows/ci.yml](.github/workflows/ci.yml) (backend: Postgres 16 + Pest + PHPStan; frontend: typecheck + Vitest + build). **Corre recién cuando el repo esté en GitHub**; el e2e no está incluido en el CI
+- [x] CI en [.github/workflows/ci.yml](.github/workflows/ci.yml) (backend: Postgres 16 + Pest + PHPStan; frontend: typecheck + Vitest + build), **en verde en GitHub**. El e2e no está incluido (se corre a mano con `bin/e2e.sh`)
 
 ### P1 — completar el MVP según el pedido original
 - [ ] Skeleton loaders (`loading.tsx`) en storefront y panel
@@ -295,4 +296,4 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 | Fecha | Qué se hizo |
 |---|---|
 | 2026-10-23 | Módulos Stores + Products (6 entregables iniciales), luego verificación en Docker, storefront API, revalidación ISR, CRUD de categorías, uploads a R2, configuración de tienda, frontend storefront, auth + panel admin, gestión de usuarios. Revisión del HANDOFF contra el código y reorganización de este archivo. Revisión de `.gitignore` por seguridad y `git init` local (sin commit). |
-| 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. |
+| 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. Identidad de git, primer commit y push a GitHub privado; el primer CI detectó que los tests llamaban al frontend real (corregido) y quedó en verde. **P0 completo.** |
