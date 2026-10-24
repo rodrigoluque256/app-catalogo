@@ -1,0 +1,149 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    volumes:
+      - ./:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: pgsql
+      DB_PORT: 5432
+      DB_DATABASE: catalogo
+      DB_USERNAME: catalogo
+      DB_PASSWORD: secret
+    depends_on:
+      pgsql:
+        condition: service_healthy
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  # Worker de colas: procesa la revalidación ISR y cualquier otro listener en segundo plano.
+  queue:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    volumes:
+      - ./:/app
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: pgsql
+      DB_PORT: 5432
+      DB_DATABASE: catalogo
+      DB_USERNAME: catalogo
+      DB_PASSWORD: secret
+    depends_on:
+      pgsql:
+        condition: service_healthy
+    command: php artisan queue:work --tries=5 --sleep=3 --max-time=3600
+    restart: unless-stopped
+
+  # Storefront Next.js en modo desarrollo. Tiendas: http://demo.localhost:3000
+  frontend:
+    image: node:22-alpine
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+    ports:
+      - "3000:3000"
+    environment:
+      HOME: /tmp
+      API_URL: http://app:8000
+      ROOT_DOMAIN: localhost
+      DEV_ORIGINS: ${FRONTEND_DEV_ORIGINS:-}
+      REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-dev-secret}
+    depends_on:
+      - app
+    command: sh -c "npm install --no-audit --no-fund && npm run dev"
+
+  # ─── Entorno e2e aislado (perfil "e2e", lo levanta bin/e2e.sh) ───────────────────────────────
+  # Usa la base catalogo_e2e: el test de navegador nunca toca la base de desarrollo.
+  app-e2e:
+    profiles: ["e2e"]
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    volumes:
+      - ./:/app
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: pgsql
+      DB_PORT: 5432
+      DB_DATABASE: catalogo_e2e
+      DB_USERNAME: catalogo
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: sync
+      STOREFRONT_REVALIDATE_URL: http://frontend-e2e:3000/api/revalidate
+      STOREFRONT_REVALIDATE_SECRET: e2e-secret
+      PHP_CLI_SERVER_WORKERS: 4
+    depends_on:
+      pgsql:
+        condition: service_healthy
+    # Servidor embebido de PHP en vez de `artisan serve`: este último reemplaza con los valores de .env
+    # las variables de entorno repetidas, y la API terminaría usando la base de desarrollo.
+    # El router de Laravel busca index.php en el directorio actual, por eso se arranca desde public/.
+    command: sh -c 'cd public && exec php -S 0.0.0.0:8000 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php'
+
+  frontend-e2e:
+    profiles: ["e2e"]
+    image: node:22-alpine
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+    environment:
+      HOME: /tmp
+      API_URL: http://app-e2e:8000
+      ROOT_DOMAIN: localhost
+      DEV_ORIGINS: frontend-e2e
+      REVALIDATE_SECRET: e2e-secret
+      # Carpeta de build propia para no chocar con el dev server del servicio "frontend".
+      NEXT_DIST_DIR: .next-e2e
+    depends_on:
+      - app-e2e
+    command: npm run dev
+
+  e2e:
+    profiles: ["e2e"]
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - ../frontend/e2e:/work:ro
+      - ../frontend/e2e/output:/out
+    environment:
+      HOME: /tmp
+      BASE_URL: http://frontend-e2e:3000
+      OUT_DIR: /out
+    depends_on:
+      - frontend-e2e
+    command: >-
+      sh -c 'mkdir -p /tmp/run && cd /tmp/run && npm init -y >/dev/null
+      && npm i playwright@1.64.1 >/dev/null && cp /work/admin.e2e.mjs . && node admin.e2e.mjs'
+
+  pgsql:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: catalogo
+      POSTGRES_USER: catalogo
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U catalogo -d catalogo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata: {}

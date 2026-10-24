@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Pest + PHPStan)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      # Los tests requieren PostgreSQL real (jsonb, índices parciales, FKs compuestas).
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: catalogo_test
+          POSTGRES_USER: catalogo
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U catalogo -d catalogo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Variables reales: tienen prioridad sobre .env. phpunit.xml fuerza DB_CONNECTION y DB_DATABASE.
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: catalogo
+      DB_PASSWORD: secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, intl, bcmath, zip
+          coverage: none
+
+      - name: Cache de Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Preparar .env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - run: ./vendor/bin/pest
+
+      - run: ./vendor/bin/phpstan analyse --no-progress
+
+  frontend:
+    name: Frontend (typecheck + Vitest + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - name: Build de producción
+        run: npm run build
+        env:
+          # El build no consulta la API (las páginas de tienda se generan bajo demanda con ISR).
+          API_URL: http://localhost:8000
+          ROOT_DOMAIN: localhost
+          REVALIDATE_SECRET: ci

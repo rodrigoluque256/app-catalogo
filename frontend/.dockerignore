@@ -1,0 +1,13 @@
+node_modules
+.next
+.next-build
+.next-e2e
+e2e/output
+.git
+*.log
+tsconfig.tsbuildinfo
+
+# Nunca hornear secretos dentro de la imagen
+.env
+.env.*
+!.env.example

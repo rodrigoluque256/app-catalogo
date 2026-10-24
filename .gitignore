@@ -1,0 +1,24 @@
+# Red de seguridad para todo el monorepo (backend/ y frontend/ tienen además sus propios .gitignore).
+
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+
+# Datos y logs locales
+*.sqlite*
+*.log
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Configuración local de Claude Code
+.claude/settings.local.json

@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+/* Colores de la tienda: el layout de cada tienda los pisa con su tema (ver app/s/[store]/layout.tsx). */
+:root {
+  --primary: #18181b;
+  --primary-fg: #ffffff;
+  --accent: #2563eb;
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  background: #fafafa;
+  color: #18181b;
+}

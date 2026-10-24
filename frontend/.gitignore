@@ -1,0 +1,21 @@
+node_modules
+.next
+.next-build
+.next-e2e
+/e2e/output
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Variables de entorno (REVALIDATE_SECRET, etc.)
+.env
+.env.*
+!.env.example
+*.pem
+
+# Logs, tests y deploy
+*.log
+/coverage
+/test-results
+/playwright-report
+.vercel
+.DS_Store
