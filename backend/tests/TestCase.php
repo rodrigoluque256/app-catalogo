@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 abstract class TestCase extends BaseTestCase
@@ -19,5 +20,8 @@ abstract class TestCase extends BaseTestCase
         if (! str_ends_with($database, '_test')) {
             throw new RuntimeException("Los tests deben usar una base terminada en _test (actual: {$database}).");
         }
+
+        // Ninguna llamada HTTP real (frontend, R2…): toda petición sin Http::fake hace fallar el test.
+        Http::preventStrayRequests();
     }
 }

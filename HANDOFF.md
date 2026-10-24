@@ -249,6 +249,8 @@ Importante: `php artisan serve` descarta las variables de entorno que también e
 - Panel: `crypto.randomUUID` fallaba en http:// no seguro; los 5xx mostraban el mensaje interno; el login vaciaba el email tras un error.
 - Panel: una respuesta 2xx sin JSON válido (ej. un error de PHP impreso como HTML) se trataba como éxito y el login explotaba con 500. Ahora [lib/admin/api.ts](frontend/lib/admin/api.ts) la convierte en error genérico.
 
+- **Los tests llamaban de verdad al frontend** (detectado por el primer CI en GitHub): heredaban `STOREFRONT_REVALIDATE_URL` de `.env` y cada alta/edición hacía un POST real a `http://frontend:3000`. En local pasaba porque ese contenedor existe; en CI fallaban 11 tests con `Could not resolve host: frontend`. Ahora `phpunit.xml` fuerza la URL vacía y [tests/TestCase.php](backend/tests/TestCase.php) activa `Http::preventStrayRequests()` (cualquier HTTP real sin `Http::fake` hace fallar el test).
+
 Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` reintenta las revalidaciones pendientes y registra `Job timed out`; se normaliza al levantar `frontend`.
 
 ---
