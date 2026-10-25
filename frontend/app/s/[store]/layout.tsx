@@ -7,6 +7,7 @@ import { CategoryNav } from '@/components/CategoryNav'
 import { SearchForm } from '@/components/SearchForm'
 import { getCategories, getStore } from '@/lib/api'
 import { readableForeground } from '@/lib/color'
+import { storeOpenGraph, storeOrigin } from '@/lib/seo'
 
 type Props = { children: React.ReactNode; params: Promise<{ store: string }> }
 
@@ -23,9 +24,14 @@ export async function generateMetadata({ params }: Pick<Props, 'params'>): Promi
   if (!store) return {}
 
   return {
+    // URLs relativas (canonical, imágenes de OG) se resuelven contra el subdominio, también si se entra por /s/...
+    metadataBase: new URL(storeOrigin(slug)),
     title: { default: store.name, template: `%s | ${store.name}` },
     description: `Catálogo de ${store.name}`,
     icons: store.logo_url ? { icon: store.logo_url } : undefined,
+    // Sin canonical acá: lo heredarían búsqueda y 404. Cada página indexable declara el suyo.
+    openGraph: { ...storeOpenGraph(store), title: store.name, description: `Catálogo de ${store.name}` },
+    twitter: { card: 'summary' },
   }
 }
 

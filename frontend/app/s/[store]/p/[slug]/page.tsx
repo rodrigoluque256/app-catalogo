@@ -5,6 +5,7 @@ import { ProductGallery } from '@/components/ProductGallery'
 import { ProductPurchase } from '@/components/ProductPurchase'
 import { getProduct, getStore } from '@/lib/api'
 import { sortedImages } from '@/lib/products'
+import { excerpt, storeOpenGraph } from '@/lib/seo'
 
 type Props = { params: Promise<{ store: string; slug: string }> }
 
@@ -15,18 +16,31 @@ export function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { store, slug } = await params
-  const product = await getProduct(store, slug)
+  const { store: storeSlug, slug } = await params
+  const [store, product] = await Promise.all([getStore(storeSlug), getProduct(storeSlug, slug)])
 
-  if (!product) return {}
+  if (!store || !product) return {}
 
   const image = sortedImages(product)[0]
-  const description = product.description?.slice(0, 160)
+  const description = excerpt(product.description)
+  const url = `/p/${product.slug}`
+  const base = storeOpenGraph(store)
 
   return {
     title: product.name,
     description,
-    openGraph: { title: product.name, description, images: image ? [image.url] : undefined },
+    alternates: { canonical: url },
+    openGraph: {
+      ...base,
+      title: product.name,
+      description,
+      url,
+      // Sin foto del producto queda el logo de la tienda (si tiene).
+      images: image
+        ? [{ url: image.url, alt: image.alt_text ?? product.name, width: image.width ?? undefined, height: image.height ?? undefined }]
+        : base.images,
+    },
+    twitter: { card: image ? 'summary_large_image' : 'summary' },
   }
 }
 

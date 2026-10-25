@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { CategoryNav } from '@/components/CategoryNav'
 import { ProductGrid } from '@/components/ProductGrid'
 import { getCategories, getProducts, getStore } from '@/lib/api'
+import { excerpt, storeOpenGraph } from '@/lib/seo'
 
 type Props = { params: Promise<{ store: string; slug: string }> }
 
@@ -13,10 +14,21 @@ export function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { store, slug } = await params
-  const category = (await getCategories(store)).find((candidate) => candidate.slug === slug)
+  const { store: storeSlug, slug } = await params
+  const [store, categories] = await Promise.all([getStore(storeSlug), getCategories(storeSlug)])
+  const category = categories.find((candidate) => candidate.slug === slug)
 
-  return category ? { title: category.name, description: category.description ?? undefined } : {}
+  if (!store || !category) return {}
+
+  const description = excerpt(category.description)
+  const url = `/c/${category.slug}`
+
+  return {
+    title: category.name,
+    description,
+    alternates: { canonical: url },
+    openGraph: { ...storeOpenGraph(store), title: category.name, description, url },
+  }
 }
 
 export default async function CategoryPage({ params }: Props) {

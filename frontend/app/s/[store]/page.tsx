@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { ProductGrid } from '@/components/ProductGrid'
 import { getProducts, getStore } from '@/lib/api'
@@ -9,6 +10,8 @@ type Props = { params: Promise<{ store: string }> }
 export function generateStaticParams() {
   return []
 }
+
+export const metadata: Metadata = { alternates: { canonical: '/' } }
 
 const PAGE_SIZE = 60
 

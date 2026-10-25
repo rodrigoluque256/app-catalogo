@@ -56,6 +56,7 @@ services:
       HOME: /tmp
       API_URL: http://app:8000
       ROOT_DOMAIN: localhost
+      STORE_ORIGIN_TEMPLATE: http://{store}.localhost:3000
       DEV_ORIGINS: ${FRONTEND_DEV_ORIGINS:-}
       REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-dev-secret}
     depends_on:
@@ -103,6 +104,7 @@ services:
       HOME: /tmp
       API_URL: http://app-e2e:8000
       ROOT_DOMAIN: localhost
+      STORE_ORIGIN_TEMPLATE: http://{store}.localhost:3000
       DEV_ORIGINS: frontend-e2e
       REVALIDATE_SECRET: e2e-secret
       # Carpeta de build propia para no chocar con el dev server del servicio "frontend".

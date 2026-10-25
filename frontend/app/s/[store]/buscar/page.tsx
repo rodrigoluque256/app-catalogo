@@ -9,7 +9,7 @@ type Props = {
   searchParams: Promise<{ q?: string; page?: string }>
 }
 
-export const metadata: Metadata = { title: 'Buscar', robots: { index: false } }
+export const metadata: Metadata = { title: 'Buscar', robots: { index: false, follow: true } }
 
 export default async function SearchPage({ params, searchParams }: Props) {
   const { store: slug } = await params
