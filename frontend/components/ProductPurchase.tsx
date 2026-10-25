@@ -53,7 +53,7 @@ export function ProductPurchase({ product, currency, locale, whatsappNumber, wha
       <p className="flex items-baseline gap-3">
         <span className="text-2xl font-semibold">{formatMoney(price, currency, locale)}</span>
         {product.compare_at_amount !== null && product.compare_at_amount > price && (
-          <span className="text-zinc-400 line-through">{formatMoney(product.compare_at_amount, currency, locale)}</span>
+          <span className="text-zinc-500 line-through">{formatMoney(product.compare_at_amount, currency, locale)}</span>
         )}
       </p>
 
@@ -75,10 +75,13 @@ export function ProductPurchase({ product, currency, locale, whatsappNumber, wha
                   aria-pressed={selected}
                   onClick={() => setSelection((current) => ({ ...current, [name]: value }))}
                   className={`min-w-11 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-                    selected ? 'border-primary bg-primary text-primary-fg' : 'border-zinc-300 bg-white hover:border-zinc-500'
-                  } ${available ? '' : 'text-zinc-400 line-through'}`}
+                    selected
+                      ? 'border-primary bg-primary text-primary-fg'
+                      : `border-zinc-300 bg-white hover:border-zinc-500 ${available ? '' : 'text-zinc-500'}`
+                  } ${available ? '' : 'line-through'}`}
                 >
                   {value}
+                  {!available && <span className="sr-only"> (sin stock)</span>}
                 </button>
               )
             })}

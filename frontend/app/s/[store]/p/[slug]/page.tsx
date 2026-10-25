@@ -57,7 +57,7 @@ export default async function ProductPage({ params }: Props) {
       <div className="flex flex-col gap-5">
         <div>
           {product.category && (
-            <Link href={`/c/${product.category.slug}`} className="text-sm text-accent">
+            <Link href={`/c/${product.category.slug}`} className="text-sm text-accent-text underline-offset-2 hover:underline">
               {product.category.name}
             </Link>
           )}

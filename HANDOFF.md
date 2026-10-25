@@ -22,8 +22,9 @@
 | `migrate:fresh --seed` | OK |
 | Pest (backend) | 88/88 (374 assertions) |
 | PHPStan nivel 8 | sin errores |
-| Vitest (frontend) | 43/43 |
+| Vitest (frontend) | 45/45 |
 | e2e de navegador del panel (Playwright, 20 pasos) | OK |
+| Auditoría WCAG 2.2 AA con axe (tienda escritorio/móvil + panel, 27 pasos) | OK, 0 violaciones |
 | Build de producción de Next + ISR (MISS → HIT) + revalidación real | OK |
 
 Leyenda: `[x]` hecho · `[ ]` pendiente · `[~]` parcial
@@ -164,6 +165,7 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 | **Backend total** | | **88** |
 | Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts) | 38 |
 | e2e | [admin.e2e.mjs](frontend/e2e/admin.e2e.mjs) (Playwright, navegador real) | 20 pasos |
+| a11y | [a11y.e2e.mjs](frontend/e2e/a11y.e2e.mjs) (axe-core, WCAG 2.2 AA, corre en `bin/e2e.sh` después del e2e) | 27 pasos |
 
 Salvaguarda: [tests/TestCase.php](backend/tests/TestCase.php) aborta si la base no termina en `_test`, y [phpunit.xml](backend/phpunit.xml) fuerza `DB_*` en `<env>` y `<server>`.
 
@@ -188,7 +190,7 @@ docker compose exec frontend npm run typecheck
 
 - Tienda demo: http://demo.localhost:3000
 - Panel: http://localhost:3000/admin — `owner@demo.test` / `password`
-- e2e: `./bin/e2e.sh` (o `--keep` para dejarlo levantado). Stack aislado del perfil `e2e` en docker-compose (`app-e2e`, `frontend-e2e`, runner `e2e`) con base propia `catalogo_e2e`: parte del seed en cada corrida y **no toca la base de desarrollo**. Capturas y resultados en `frontend/e2e/output/`; sale con código 1 si falla un paso.
+- e2e: `./bin/e2e.sh` (o `--keep` para dejarlo levantado). Stack aislado del perfil `e2e` en docker-compose (`app-e2e`, `frontend-e2e`, runner `e2e`) con base propia `catalogo_e2e`: parte del seed en cada corrida y **no toca la base de desarrollo**. Corre `admin.e2e.mjs` y después `a11y.e2e.mjs` (axe). Capturas y resultados en `frontend/e2e/output/` (`results.txt`, `a11y-results.txt`); sale con código 1 si falla un paso de cualquiera de los dos.
 
 ### Variables de entorno
 
@@ -226,7 +228,7 @@ Importante: `php artisan serve` descarta las variables de entorno que también e
 | TanStack Query | [ ] **no instalado** (el panel usa Server Actions) |
 | Skeleton loaders | [x] `loading.tsx` en las 4 rutas del storefront y las 9 del panel; primitivas en [components/Skeleton.tsx](frontend/components/Skeleton.tsx) y [components/admin/skeletons.tsx](frontend/components/admin/skeletons.tsx) |
 | Tipografía Inter o Geist | [x] Geist + Geist Mono con `next/font/google` en [app/layout.tsx](frontend/app/layout.tsx), expuestas a Tailwind como `font-sans`/`font-mono` |
-| WCAG AA | [~] hay `aria-*` y contraste automático, **sin auditoría** (axe/Lighthouse) |
+| WCAG AA | [x] auditoría axe WCAG 2.2 AA automatizada en `bin/e2e.sh` (0 violaciones); skip link, `<main>`, foco visible, contraste y acento de marca legible |
 | SEO | [x] `robots.txt` y `sitemap.xml` por tienda (por Host), canonical y Open Graph/Twitter con logo o foto del producto ([lib/seo.ts](frontend/lib/seo.ts)) |
 | Hosting Hetzner + Vercel | [ ] sin configuración de deploy |
 
@@ -240,6 +242,7 @@ Importante: `php artisan serve` descarta las variables de entorno que también e
 - **SKUs:** sin normalizar mayúsculas/espacios. Con soft delete del producto, sus variantes retienen los SKUs.
 - **R2:** objetos huérfanos (subidos sin asociar, o reemplazados) no se limpian. El HEAD de validación se repite por imagen en cada guardado (≤ 20).
 - **Storefront:** home y categorías muestran hasta 60 productos (sin paginación en páginas cacheadas); una categoría no incluye productos de sus subcategorías; `custom_domain` no soportado (solo `X-Store-Slug`).
+- **Accesibilidad:** la auditoría usa axe-core (`@axe-core/playwright`). Lighthouse no se agregó: su categoría de accesibilidad corre el mismo motor; queda como chequeo manual opcional desde DevTools. Se excluye solo el indicador del dev server de Next (`nextjs-portal`). Hallazgos corregidos: contraste de `text-zinc-400` (precios tachados, "Sin imagen", checklist, "Sin logo"), input de archivo sin etiqueta (ahora `hidden`, se abre con el botón), sin skip link en tienda y panel. Además: `<main id="contenido">` en la tienda, foco visible global (`:focus-visible` en `@layer base`), `--accent-text`/`--accent-fg` para que un acento claro elegido por la tienda no rompa el contraste, textos para lector de pantalla en variantes sin stock, ítems hechos y link que abre otra pestaña. axe no cubre todo: falta una pasada manual con lector de pantalla (NVDA/VoiceOver).
 - **SEO:** `app/robots.ts` y `app/sitemap.ts` están en la raíz (el proxy no reescribe rutas con punto) y eligen la tienda por el `Host`. URLs absolutas con `STORE_ORIGIN_TEMPLATE` (vacío = `https://{store}.ROOT_DOMAIN`); el canonical apunta siempre al subdominio, también si se entra por `/s/...`. Sitemap sin `lastModified` (la API no expone `updated_at`) y con tope de 3000 productos. Pendiente: JSON-LD `Product`, imagen OG generada (`opengraph-image`), canonical con dominio propio cuando se enruten.
 - **Fuentes:** `next/font/google` descarga Geist **en el build** (CI, Docker y `next dev` necesitan salida a fonts.googleapis.com/fonts.gstatic.com). Para buildear sin red: paquete `geist` + `next/font/local`.
 - **Panel:** vive en el dominio raíz `/admin`; para `admin.dominio.com` hay que ajustar `proxy.ts`.
@@ -274,7 +277,7 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 - [x] Skeleton loaders (`loading.tsx`) en storefront y panel: Tailwind puro (`animate-pulse`, se detiene con `prefers-reduced-motion`), `role="status"` + texto sr-only, misma grilla/bordes que el contenido real para no saltar el layout
 - [x] Fuente Geist (y Geist Mono) con `next/font`: autoalojada, sin pedidos a Google desde el navegador
 - [x] SEO: `sitemap.xml` y `robots.txt` por tienda, Open Graph con logo/imagen del producto
-- [ ] Auditoría WCAG AA (axe + Lighthouse) y corrección de hallazgos
+- [x] Auditoría WCAG AA (axe + Lighthouse) y corrección de hallazgos
 - [ ] Decidir shadcn/ui y TanStack Query: adoptarlos o registrar formalmente que no se usan
 - [ ] Probar contra R2 real: configurar `R2_*`, `IMAGE_HOSTS` y CORS del bucket (`PUT` desde el dominio del admin)
 - [ ] Deploy: Hetzner (API, Postgres, worker con supervisor, backups), Vercel (frontend), DNS wildcard `*.dominio.com`, variables de producción
@@ -300,4 +303,4 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 |---|---|
 | 2026-10-23 | Módulos Stores + Products (6 entregables iniciales), luego verificación en Docker, storefront API, revalidación ISR, CRUD de categorías, uploads a R2, configuración de tienda, frontend storefront, auth + panel admin, gestión de usuarios. Revisión del HANDOFF contra el código y reorganización de este archivo. Revisión de `.gitignore` por seguridad y `git init` local (sin commit). |
 | 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. Identidad de git, primer commit y push a GitHub privado; el primer CI detectó que los tests llamaban al frontend real (corregido) y quedó en verde. **P0 completo.** |
-| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. |
+| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. P1: auditoría WCAG 2.2 AA con axe integrada al e2e (rama `P1_auditoria_WCAG`): primera corrida con violaciones de contraste, label y skip link; corregidas → a11y 27/27, e2e 20/20, Vitest 45/45, build OK. |

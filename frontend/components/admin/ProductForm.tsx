@@ -190,7 +190,7 @@ export function ProductForm({ productId, initial, categories }: Props) {
               <input
                 aria-label={`Nombre de la opción ${index + 1}`}
                 placeholder="ej. talle"
-                className="w-24 bg-transparent px-2 py-1 text-sm outline-none"
+                className="w-24 bg-transparent px-2 py-1 text-sm"
                 value={name}
                 maxLength={50}
                 onChange={(e) => renameOption(index, e.target.value)}

@@ -22,13 +22,13 @@ export function ProductCard({ product, store }: { product: Product; store: Store
             className="object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-zinc-400">Sin imagen</div>
+          <div className="flex h-full items-center justify-center text-sm text-zinc-600">Sin imagen</div>
         )}
         {soldOut && (
           <span className="absolute left-2 top-2 rounded bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white">Agotado</span>
         )}
         {!soldOut && onSale && (
-          <span className="absolute left-2 top-2 rounded bg-accent px-2 py-0.5 text-xs font-medium text-white">Oferta</span>
+          <span className="absolute left-2 top-2 rounded bg-accent px-2 py-0.5 text-xs font-medium text-accent-fg">Oferta</span>
         )}
       </div>
       <div>
@@ -39,7 +39,7 @@ export function ProductCard({ product, store }: { product: Product; store: Store
             {formatMoney(amount, store.currency, store.locale)}
           </span>
           {onSale && (
-            <span className="text-xs text-zinc-400 line-through">
+            <span className="text-xs text-zinc-500 line-through">
               {formatMoney(product.compare_at_amount!, store.currency, store.locale)}
             </span>
           )}

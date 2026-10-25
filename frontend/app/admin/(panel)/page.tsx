@@ -60,7 +60,7 @@ export default async function Dashboard() {
             {checklist.map((item) => (
               <li key={item.text} className="flex items-center gap-2">
                 <span aria-hidden>{item.done ? '✅' : '⬜'}</span>
-                {item.done ? <span className="text-zinc-400 line-through">{item.text}</span> : <Link href={item.href} className="underline">{item.text}</Link>}
+                {item.done ? <span className="text-zinc-500 line-through">{item.text}<span className="sr-only"> (hecho)</span></span> : <Link href={item.href} className="underline">{item.text}</Link>}
               </li>
             ))}
           </ul>

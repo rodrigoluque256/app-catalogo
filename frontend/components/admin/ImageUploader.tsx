@@ -72,7 +72,8 @@ export function ImageUploader({ purpose, multiple = false, label, onUploaded }: 
         type="file"
         accept={ALLOWED.join(',')}
         multiple={multiple}
-        className="sr-only"
+        // Oculto del todo (fuera del orden de tabulación y del árbol de accesibilidad): se abre con el botón.
+        hidden
         id={`upload-${purpose}`}
         onChange={(event) => void handle(event.target.files)}
       />

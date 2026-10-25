@@ -11,7 +11,7 @@ export function SearchForm({ defaultValue = '' }: { defaultValue?: string }) {
         defaultValue={defaultValue}
         placeholder="Buscar…"
         maxLength={100}
-        className="w-full rounded-l-md border border-r-0 border-zinc-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-primary"
+        className="w-full rounded-l-md border border-r-0 border-zinc-300 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-2 focus:outline-offset-0 focus:outline-primary"
       />
       <button type="submit" className="rounded-r-md bg-primary px-3 text-sm text-primary-fg">
         Ir

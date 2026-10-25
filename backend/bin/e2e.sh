@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Test de navegador del panel contra un stack aislado (base catalogo_e2e, API y frontend propios).
+# Tests de navegador contra un stack aislado (base catalogo_e2e, API y frontend propios):
+# admin.e2e.mjs recorre el panel y a11y.e2e.mjs audita tienda y panel con axe (WCAG 2.2 AA).
 # Cada corrida parte del seed: no deja datos en la base de desarrollo.
 #   ./bin/e2e.sh          corre y apaga el stack e2e al terminar
 #   ./bin/e2e.sh --keep   lo deja levantado para inspeccionarlo
-# Capturas y resultados: frontend/e2e/output/
+# Capturas y resultados: frontend/e2e/output/ (results.txt y a11y-results.txt)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -39,7 +40,8 @@ for _ in $(seq 1 60); do
 done
 
 # El dev server compila cada ruta en su primera visita: se precalientan para que no venzan los timeouts del test.
-for path in /admin /admin/products /admin/products/new /admin/categories /admin/categories/new /admin/settings /admin/users /admin/account; do
+for path in /admin /admin/products /admin/products/new /admin/categories /admin/categories/new /admin/settings /admin/users /admin/account \
+  /s/demo /s/demo/c/remeras /s/demo/p/remera-oversize-algodon /s/demo/buscar; do
   "${compose[@]}" exec -T frontend-e2e wget -qO /dev/null "http://localhost:3000${path}" 2>/dev/null || true
 done
 

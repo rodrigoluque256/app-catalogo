@@ -74,7 +74,7 @@ export function SettingsForm({ store }: { store: Store }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt="Logo actual" className="h-16 w-16 rounded border border-zinc-200 object-contain" />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-zinc-300 text-xs text-zinc-400">Sin logo</div>
+            <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-zinc-300 text-xs text-zinc-500">Sin logo</div>
           )}
           <div className="flex flex-col gap-2">
             <ImageUploader purpose="store_logo" label={logoUrl ? 'Cambiar logo' : 'Subir logo'} onUploaded={([image]) => { if (image) { setLogoPath(image.path); setLogoUrl(image.url) } }} />

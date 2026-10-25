@@ -5,8 +5,9 @@ import { notFound } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import { CategoryNav } from '@/components/CategoryNav'
 import { SearchForm } from '@/components/SearchForm'
+import { SkipLink } from '@/components/SkipLink'
 import { getCategories, getStore } from '@/lib/api'
-import { readableForeground } from '@/lib/color'
+import { readableAccent, readableForeground } from '@/lib/color'
 import { storeOpenGraph, storeOrigin } from '@/lib/seo'
 
 type Props = { children: React.ReactNode; params: Promise<{ store: string }> }
@@ -45,10 +46,13 @@ export default async function StoreLayout({ children, params }: Props) {
     '--primary': store.theme.primary_color,
     '--primary-fg': readableForeground(store.theme.primary_color),
     '--accent': store.theme.accent_color,
+    '--accent-fg': readableForeground(store.theme.accent_color),
+    '--accent-text': readableAccent(store.theme.accent_color),
   } as CSSProperties
 
   return (
     <div style={theme} className="flex min-h-screen flex-col">
+      <SkipLink />
       <header className="border-b border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <Link href="/" className="flex items-center gap-2 font-semibold">
@@ -63,7 +67,9 @@ export default async function StoreLayout({ children, params }: Props) {
 
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
         <CategoryNav categories={categories} />
-        <div className="mt-5">{children}</div>
+        <main id="contenido" tabIndex={-1} className="mt-5 outline-none">
+          {children}
+        </main>
       </div>
 
       <footer className="border-t border-zinc-200 bg-white py-6 text-center text-sm text-zinc-500">

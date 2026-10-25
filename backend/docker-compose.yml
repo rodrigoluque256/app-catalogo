@@ -128,7 +128,8 @@ services:
       - frontend-e2e
     command: >-
       sh -c 'mkdir -p /tmp/run && cd /tmp/run && npm init -y >/dev/null
-      && npm i playwright@1.64.1 >/dev/null && cp /work/admin.e2e.mjs . && node admin.e2e.mjs'
+      && npm i playwright@1.64.1 @axe-core/playwright@4.14.0 >/dev/null && cp /work/*.e2e.mjs .
+      && { node admin.e2e.mjs; a=$$?; node a11y.e2e.mjs; b=$$?; exit $$((a | b)); }'
 
   pgsql:
     image: postgres:16-alpine

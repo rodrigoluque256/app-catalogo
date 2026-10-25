@@ -10,7 +10,7 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
 
   if (!current) {
     return (
-      <div className="flex aspect-square items-center justify-center rounded-lg bg-zinc-100 text-zinc-400">Sin imagen</div>
+      <div className="flex aspect-square items-center justify-center rounded-lg bg-zinc-100 text-zinc-600">Sin imagen</div>
     )
   }
 

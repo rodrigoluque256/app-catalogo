@@ -5,12 +5,17 @@
   --primary: #18181b;
   --primary-fg: #ffffff;
   --accent: #2563eb;
+  --accent-fg: #ffffff;
+  /* El acento como texto sobre blanco; el layout de tienda lo baja a casi negro si no llega a 4,5:1. */
+  --accent-text: #2563eb;
 }
 
 @theme inline {
   --color-primary: var(--primary);
   --color-primary-fg: var(--primary-fg);
   --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
   /* Geist vía next/font (app/layout.tsx); la pila del sistema queda de respaldo. */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -19,4 +24,14 @@
 body {
   background: #fafafa;
   color: #18181b;
+}
+
+/* Foco visible con teclado en todo el sitio (WCAG 2.4.7): doble anillo, se ve sobre fondos claros y de marca. */
+/* En @layer base para que las utilidades (focus:ring, outline-none) puedan pisarlo donde haga falta. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid #18181b;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px #ffffff;
+  }
 }

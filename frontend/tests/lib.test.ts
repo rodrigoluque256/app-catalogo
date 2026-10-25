@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readableForeground } from '@/lib/color'
+import { contrastRatio, readableAccent, readableForeground } from '@/lib/color'
 import { storeSlugFromHost } from '@/lib/host'
 import { formatMoney } from '@/lib/money'
 import { findVariant, isSoldOut, listingPrice, optionGroups, primaryImage } from '@/lib/products'
@@ -113,5 +113,21 @@ describe('readableForeground', () => {
     expect(readableForeground('#FFFFFF')).toBe('#18181b')
     expect(readableForeground('#FACC15')).toBe('#18181b')
     expect(readableForeground('invalido')).toBe('#ffffff')
+  })
+})
+
+describe('contrastRatio / readableAccent', () => {
+  it('computes the WCAG contrast ratio', () => {
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21)
+    expect(contrastRatio('#2563eb', '#2563eb')).toBe(1)
+    expect(contrastRatio('#71717a', '#ffffff')).toBeGreaterThanOrEqual(4.5) // zinc-500
+    expect(contrastRatio('#a1a1aa', '#ffffff')).toBeLessThan(4.5) // zinc-400
+    expect(contrastRatio('invalido', '#ffffff')).toBe(1)
+  })
+
+  it('keeps the accent as text only when it reaches 4.5:1 on white', () => {
+    expect(readableAccent('#2563eb')).toBe('#2563eb')
+    expect(readableAccent('#facc15')).toBe('#18181b')
+    expect(readableAccent('invalido')).toBe('#18181b')
   })
 })
