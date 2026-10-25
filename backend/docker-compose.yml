@@ -85,6 +85,12 @@ services:
       STOREFRONT_REVALIDATE_URL: http://frontend-e2e:3000/api/revalidate
       STOREFRONT_REVALIDATE_SECRET: e2e-secret
       PHP_CLI_SERVER_WORKERS: 4
+      # Sin R2: el e2e nunca escribe en el bucket real aunque backend/.env tenga credenciales.
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+      R2_BUCKET: ""
+      R2_ENDPOINT: ""
+      R2_PUBLIC_URL: ""
     depends_on:
       pgsql:
         condition: service_healthy

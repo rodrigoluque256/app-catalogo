@@ -138,6 +138,12 @@ Fuera de un request (seeders, jobs, comandos): `app(TenantContext::class)->runAs
 - `POST /admin/uploads/presign` `{purpose: product_image|store_logo, content_type: jpeg|png|webp, size ≤ 5 MB}` → `{path, upload_url, method: PUT, headers, public_url, expires_at}` (TTL 10 min). Key generada por el servidor: `stores/{storeId}/{products|logo}/{uuid7}.{ext}`.
 - Flujo: presign → `PUT` directo a R2 → enviar `path` en `images[].path` o `logo_path`.
 - **Límite del SDK:** la URL prefirmada no firma tipo ni tamaño. La barrera real es la regla [UploadedImage](backend/app/UI/Http/Rules/): HEAD a R2 exigiendo que exista, sea JPEG/PNG/WebP y ≤ 5 MB, y que la key tenga el prefijo de la tienda.
+- **CORS del bucket** (R2 > bucket > Settings > CORS Policy). Sin esto el navegador bloquea el `PUT`. En producción, agregar el origen real del panel:
+  ```json
+  [{ "AllowedOrigins": ["http://localhost:3000"], "AllowedMethods": ["PUT"], "AllowedHeaders": ["content-type"], "MaxAgeSeconds": 3600 }]
+  ```
+- **URL pública:** en desarrollo, la Public Development URL (`https://pub-xxxx.r2.dev`), con límite de tráfico y sin caché. En producción, un dominio propio conectado al bucket: cambiar `R2_PUBLIC_URL` (backend) e `IMAGE_HOSTS` (frontend). Se guarda la key, no la URL, así que no hay datos que migrar.
+- **e2e:** `app-e2e` pisa las `R2_*` con valores vacíos, para no escribir nunca en el bucket real aunque `backend/.env` tenga credenciales. El paso de subida del e2e registra el error como INFO.
 
 ### Errores
 Errores de dominio → 422 con el mismo formato que la validación de Laravel. Recurso inexistente o de otra tienda → 404. 5xx sin mensaje interno. Ver [bootstrap/app.php](backend/bootstrap/app.php).
@@ -280,7 +286,7 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 - [x] SEO: `sitemap.xml` y `robots.txt` por tienda, Open Graph con logo/imagen del producto
 - [x] Auditoría WCAG AA (axe + Lighthouse) y corrección de hallazgos
 - [x] Decidir shadcn/ui y TanStack Query: adoptarlos o registrar formalmente que no se usan (decidido: ninguno por ahora)
-- [ ] Probar contra R2 real: configurar `R2_*`, `IMAGE_HOSTS` y CORS del bucket (`PUT` desde el dominio del admin)
+- [x] Probar contra R2 real: configurar `R2_*`, `IMAGE_HOSTS` y CORS del bucket (`PUT` desde el dominio del admin). Probado en dev con la Public Development URL (`r2.dev`); el e2e corre sin R2
 - [ ] Deploy: Hetzner (API, Postgres, worker con supervisor, backups), Vercel (frontend), DNS wildcard `*.dominio.com`, variables de producción
 
 ### P2 — producto
@@ -304,4 +310,4 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 |---|---|
 | 2026-10-23 | Módulos Stores + Products (6 entregables iniciales), luego verificación en Docker, storefront API, revalidación ISR, CRUD de categorías, uploads a R2, configuración de tienda, frontend storefront, auth + panel admin, gestión de usuarios. Revisión del HANDOFF contra el código y reorganización de este archivo. Revisión de `.gitignore` por seguridad y `git init` local (sin commit). |
 | 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. Identidad de git, primer commit y push a GitHub privado; el primer CI detectó que los tests llamaban al frontend real (corregido) y quedó en verde. **P0 completo.** |
-| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. P1: auditoría WCAG 2.2 AA con axe integrada al e2e (rama `P1_auditoria_WCAG`): primera corrida con violaciones de contraste, label y skip link; corregidas → a11y 27/27, e2e 20/20, Vitest 45/45, build OK. P1: decisión registrada: ni shadcn/ui ni TanStack Query por ahora (motivos y disparadores en Decisiones). |
+| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. P1: auditoría WCAG 2.2 AA con axe integrada al e2e (rama `P1_auditoria_WCAG`): primera corrida con violaciones de contraste, label y skip link; corregidas → a11y 27/27, e2e 20/20, Vitest 45/45, build OK. P1: decisión registrada: ni shadcn/ui ni TanStack Query por ahora (motivos y disparadores en Decisiones). P1: prueba contra R2 real (rama `P1_probar_contra_R2_real`): credenciales, URL pública r2.dev, CORS, subida de imagen de producto y logo desde el panel y visualización en la tienda vía `next/image`, todo OK; objetos y productos de prueba borrados. `IMAGE_HOSTS` en `frontend/.env.local`, e2e aislado de R2, login del e2e de a11y tolerante al throttle (fallaba en corridas rápidas); e2e 47/47 OK. |

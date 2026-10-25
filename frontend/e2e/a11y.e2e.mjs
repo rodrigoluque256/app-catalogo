@@ -83,10 +83,20 @@ await step('panel: login con error', async () => {
 })
 
 await step('panel: iniciar sesión', async () => {
-  await page.getByLabel('Email').fill('owner@demo.test')
-  await page.getByLabel('Contraseña').fill('password')
-  await page.getByRole('button', { name: 'Ingresar' }).click()
-  await page.waitForURL(`${base}/admin`)
+  const submit = async () => {
+    await page.getByLabel('Email').fill('owner@demo.test')
+    await page.getByLabel('Contraseña').fill('password')
+    await page.getByRole('button', { name: 'Ingresar' }).click()
+    const throttled = page.getByText('Demasiados intentos')
+    await Promise.race([page.waitForURL(`${base}/admin`), throttled.waitFor()])
+    return page.url() === `${base}/admin`
+  }
+
+  // admin.e2e.mjs ya entró 5 veces como dueño; si fue rápido, el límite (5/min por email+IP) sigue activo.
+  if (!(await submit())) {
+    await page.waitForTimeout(61_000)
+    if (!(await submit())) throw new Error('el login sigue limitado')
+  }
 })
 
 const panel = [
