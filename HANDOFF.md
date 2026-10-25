@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| Última actualización | 2026-10-24 |
+| Última actualización | 2026-10-25 |
 | Fase | **MVP funcional de punta a punta**: API admin + storefront + panel de administración + revalidación ISR |
 | Backend | Laravel 13 · PHP 8.4 · PostgreSQL 16 · Sanctum · Spatie Permission (teams) · Pest · Larastan nivel 8 |
 | Frontend | Next.js 16 · React 19 · Tailwind 4 · Vitest · Playwright (e2e) |
@@ -22,7 +22,7 @@
 | `migrate:fresh --seed` | OK |
 | Pest (backend) | 88/88 (374 assertions) |
 | PHPStan nivel 8 | sin errores |
-| Vitest (frontend) | 33/33 |
+| Vitest (frontend) | 38/38 |
 | e2e de navegador del panel (Playwright, 20 pasos) | OK |
 | Build de producción de Next + ISR (MISS → HIT) + revalidación real | OK |
 
@@ -162,7 +162,7 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 | Feature | [RevalidationTest](backend/tests/Feature/Storefront/RevalidationTest.php) | 7 |
 | — | `ExampleTest` (Unit + Feature, del skeleton) | 2 |
 | **Backend total** | | **88** |
-| Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts) | 33 |
+| Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts) | 38 |
 | e2e | [admin.e2e.mjs](frontend/e2e/admin.e2e.mjs) (Playwright, navegador real) | 20 pasos |
 
 Salvaguarda: [tests/TestCase.php](backend/tests/TestCase.php) aborta si la base no termina en `_test`, y [phpunit.xml](backend/phpunit.xml) fuerza `DB_*` en `<env>` y `<server>`.
@@ -224,7 +224,7 @@ Importante: `php artisan serve` descarta las variables de entorno que también e
 | Next.js 14/15 | [~] se usó **Next 16** (desvío no planificado, funciona) |
 | shadcn/ui | [ ] **no instalado**, componentes propios |
 | TanStack Query | [ ] **no instalado** (el panel usa Server Actions) |
-| Skeleton loaders | [ ] **no hay `loading.tsx` ni skeletons** |
+| Skeleton loaders | [x] `loading.tsx` en las 4 rutas del storefront y las 9 del panel; primitivas en [components/Skeleton.tsx](frontend/components/Skeleton.tsx) y [components/admin/skeletons.tsx](frontend/components/admin/skeletons.tsx) |
 | Tipografía Inter o Geist | [ ] usa la fuente del sistema |
 | WCAG AA | [~] hay `aria-*` y contraste automático, **sin auditoría** (axe/Lighthouse) |
 | SEO | [~] `generateMetadata` en páginas; **faltan `sitemap`, `robots`, Open Graph por tienda** |
@@ -241,6 +241,7 @@ Importante: `php artisan serve` descarta las variables de entorno que también e
 - **R2:** objetos huérfanos (subidos sin asociar, o reemplazados) no se limpian. El HEAD de validación se repite por imagen en cada guardado (≤ 20).
 - **Storefront:** home y categorías muestran hasta 60 productos (sin paginación en páginas cacheadas); una categoría no incluye productos de sus subcategorías; `custom_domain` no soportado (solo `X-Store-Slug`).
 - **Panel:** vive en el dominio raíz `/admin`; para `admin.dominio.com` hay que ajustar `proxy.ts`.
+- **Soft-404 por `loading.tsx`:** un producto o categoría inexistente responde 200 + `<meta name="robots" content="noindex">` (el `notFound()` de la página llega después de que el skeleton empezó el stream). Una tienda inexistente sigue siendo 404 real (el `notFound()` está en el layout). Mitigación futura: validar el slug en `proxy.ts`.
 
 ## Bugs encontrados y corregidos (historial)
 
@@ -268,7 +269,7 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 - [x] CI en [.github/workflows/ci.yml](.github/workflows/ci.yml) (backend: Postgres 16 + Pest + PHPStan; frontend: typecheck + Vitest + build), **en verde en GitHub**. El e2e no está incluido (se corre a mano con `bin/e2e.sh`)
 
 ### P1 — completar el MVP según el pedido original
-- [ ] Skeleton loaders (`loading.tsx`) en storefront y panel
+- [x] Skeleton loaders (`loading.tsx`) en storefront y panel: Tailwind puro (`animate-pulse`, se detiene con `prefers-reduced-motion`), `role="status"` + texto sr-only, misma grilla/bordes que el contenido real para no saltar el layout
 - [ ] Fuente Inter o Geist con `next/font`
 - [ ] SEO: `sitemap.xml` y `robots.txt` por tienda, Open Graph con logo/imagen del producto
 - [ ] Auditoría WCAG AA (axe + Lighthouse) y corrección de hallazgos
@@ -297,3 +298,4 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 |---|---|
 | 2026-10-23 | Módulos Stores + Products (6 entregables iniciales), luego verificación en Docker, storefront API, revalidación ISR, CRUD de categorías, uploads a R2, configuración de tienda, frontend storefront, auth + panel admin, gestión de usuarios. Revisión del HANDOFF contra el código y reorganización de este archivo. Revisión de `.gitignore` por seguridad y `git init` local (sin commit). |
 | 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. Identidad de git, primer commit y push a GitHub privado; el primer CI detectó que los tests llamaban al frontend real (corregido) y quedó en verde. **P0 completo.** |
+| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. |
