@@ -11,7 +11,9 @@
   --color-primary: var(--primary);
   --color-primary-fg: var(--primary-fg);
   --color-accent: var(--accent);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Geist vía next/font (app/layout.tsx); la pila del sistema queda de respaldo. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 body {

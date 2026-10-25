@@ -225,7 +225,7 @@ Importante: `php artisan serve` descarta las variables de entorno que también e
 | shadcn/ui | [ ] **no instalado**, componentes propios |
 | TanStack Query | [ ] **no instalado** (el panel usa Server Actions) |
 | Skeleton loaders | [x] `loading.tsx` en las 4 rutas del storefront y las 9 del panel; primitivas en [components/Skeleton.tsx](frontend/components/Skeleton.tsx) y [components/admin/skeletons.tsx](frontend/components/admin/skeletons.tsx) |
-| Tipografía Inter o Geist | [ ] usa la fuente del sistema |
+| Tipografía Inter o Geist | [x] Geist + Geist Mono con `next/font/google` en [app/layout.tsx](frontend/app/layout.tsx), expuestas a Tailwind como `font-sans`/`font-mono` |
 | WCAG AA | [~] hay `aria-*` y contraste automático, **sin auditoría** (axe/Lighthouse) |
 | SEO | [~] `generateMetadata` en páginas; **faltan `sitemap`, `robots`, Open Graph por tienda** |
 | Hosting Hetzner + Vercel | [ ] sin configuración de deploy |
@@ -240,6 +240,7 @@ Importante: `php artisan serve` descarta las variables de entorno que también e
 - **SKUs:** sin normalizar mayúsculas/espacios. Con soft delete del producto, sus variantes retienen los SKUs.
 - **R2:** objetos huérfanos (subidos sin asociar, o reemplazados) no se limpian. El HEAD de validación se repite por imagen en cada guardado (≤ 20).
 - **Storefront:** home y categorías muestran hasta 60 productos (sin paginación en páginas cacheadas); una categoría no incluye productos de sus subcategorías; `custom_domain` no soportado (solo `X-Store-Slug`).
+- **Fuentes:** `next/font/google` descarga Geist **en el build** (CI, Docker y `next dev` necesitan salida a fonts.googleapis.com/fonts.gstatic.com). Para buildear sin red: paquete `geist` + `next/font/local`.
 - **Panel:** vive en el dominio raíz `/admin`; para `admin.dominio.com` hay que ajustar `proxy.ts`.
 - **Soft-404 por `loading.tsx`:** un producto o categoría inexistente responde 200 + `<meta name="robots" content="noindex">` (el `notFound()` de la página llega después de que el skeleton empezó el stream). Una tienda inexistente sigue siendo 404 real (el `notFound()` está en el layout). Mitigación futura: validar el slug en `proxy.ts`.
 
@@ -270,7 +271,7 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 
 ### P1 — completar el MVP según el pedido original
 - [x] Skeleton loaders (`loading.tsx`) en storefront y panel: Tailwind puro (`animate-pulse`, se detiene con `prefers-reduced-motion`), `role="status"` + texto sr-only, misma grilla/bordes que el contenido real para no saltar el layout
-- [ ] Fuente Inter o Geist con `next/font`
+- [x] Fuente Geist (y Geist Mono) con `next/font`: autoalojada, sin pedidos a Google desde el navegador
 - [ ] SEO: `sitemap.xml` y `robots.txt` por tienda, Open Graph con logo/imagen del producto
 - [ ] Auditoría WCAG AA (axe + Lighthouse) y corrección de hallazgos
 - [ ] Decidir shadcn/ui y TanStack Query: adoptarlos o registrar formalmente que no se usan
@@ -298,4 +299,4 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 |---|---|
 | 2026-10-23 | Módulos Stores + Products (6 entregables iniciales), luego verificación en Docker, storefront API, revalidación ISR, CRUD de categorías, uploads a R2, configuración de tienda, frontend storefront, auth + panel admin, gestión de usuarios. Revisión del HANDOFF contra el código y reorganización de este archivo. Revisión de `.gitignore` por seguridad y `git init` local (sin commit). |
 | 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. Identidad de git, primer commit y push a GitHub privado; el primer CI detectó que los tests llamaban al frontend real (corregido) y quedó en verde. **P0 completo.** |
-| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. |
+| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. |
