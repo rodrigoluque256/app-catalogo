@@ -7,7 +7,7 @@
 | | |
 |---|---|
 | Última actualización | 2026-10-25 |
-| Fase | **MVP funcional de punta a punta**: API admin + storefront + panel de administración + revalidación ISR |
+| Fase | **MVP completo** (API admin + storefront + panel + ISR). Siguiente fase: **SaaS** (super panel, planes, registro público, Mercado Pago; ver [Visión de producto](#visión-de-producto-saas)). Deploy al final |
 | Backend | Laravel 13 · PHP 8.4 · PostgreSQL 16 · Sanctum · Spatie Permission (teams) · Pest · Larastan nivel 8 |
 | Frontend | Next.js 16 · React 19 · Tailwind 4 · Vitest · Playwright (e2e) |
 | Tenancy | Global Scope custom, una sola base, columna `store_id` |
@@ -107,7 +107,7 @@ Nota: existe una carpeta vacía `app/Domain/Category/Events` (sobrante; `Categor
 | Archivo | Tabla | Puntos clave |
 |---|---|---|
 | [000001](backend/database/migrations/2026_10_23_000001_create_stores_table.php) | `stores` | slug = subdominio (único, formato DNS), colores hex con CHECK, WhatsApp E.164 con CHECK, `settings` jsonb |
-| [000002](backend/database/migrations/2026_10_23_000002_add_store_id_to_users_table.php) | `users` | `store_id` nullable (null = super admin) |
+| [000002](backend/database/migrations/2026_10_23_000002_add_store_id_to_users_table.php) | `users` | `store_id` nullable (pensado como null = super admin; **se reemplaza** por la tabla `platform_admins`, ver Visión de producto) |
 | [000003](backend/database/migrations/2026_10_23_000003_create_categories_table.php) | `categories` | árbol `parent_id` en la misma tienda (FK compuesta), slug único por tienda |
 | [000004](backend/database/migrations/2026_10_23_000004_create_products_table.php) | `products` | precio en centavos, FK compuesta a categoría, slug/SKU únicos por tienda, `search_vector` full-text español + GIN |
 | [000005](backend/database/migrations/2026_10_23_000005_create_product_variants_table.php) | `product_variants` | `options` jsonb + GIN, precio y stock opcionales (null = hereda / sin control) |
@@ -240,6 +240,61 @@ Importante: `php artisan serve` descarta las variables de entorno que también e
 
 ---
 
+## Visión de producto (SaaS)
+
+Definida el 2026-10-25. Las tiendas se crean solas, se cobran por plan con Mercado Pago y se administran desde un super panel central con acceso aparte. No cambia nada de lo hecho: es la próxima fase (ver [P2](#p2--saas-y-producto)).
+
+### Registro público en 3 pasos
+Referencia: vercatalogo.com/register. Ruta pública en el dominio raíz (ej. `/registro`).
+1. **Acceso:** email, contraseña y confirmación (mismas reglas que el panel: ≥ 10 caracteres con letras y números).
+2. **Tienda:** nombre, subdominio con chequeo de disponibilidad en vivo y slugs reservados (`www`, `api`, `admin`, `app`, `platform`…), WhatsApp opcional.
+3. **Plan:** Gratis por defecto; un plan pago lleva al checkout de Mercado Pago.
+
+Resultado: se crean tienda + dueño (rol `owner`) en una transacción y entra a su panel.
+
+**Anti-abuso:** captcha **Cloudflare Turnstile** (decidido 2026-10-25 en vez de reCAPTCHA v3: gratis sin límite, sin cookies de seguimiento, mismo proveedor que R2) con el token **verificado en el backend** (`TURNSTILE_SITE_KEY` frontend, `TURNSTILE_SECRET_KEY` backend); además throttle por IP, campo trampa (honeypot) y verificación de email antes de publicar la tienda (requiere email transaccional).
+
+### Planes y límites
+
+Precios en ARS. Anual con **40 % de descuento** (decidido 2026-10-25): anual = mensual × 12 × 0,6.
+
+| Plan | Productos | Mensual | 12 meses sin descuento | **Anual (−40 %)** | Equivale por mes | Ahorro anual |
+|---|---|---|---|---|---|---|
+| Gratis | hasta 25 | $0 | $0 | $0 | $0 | — |
+| Basic | hasta 250 | $10.000 | $120.000 | **$72.000** | $6.000 | $48.000 |
+| Intermediate | hasta 500 | $19.000 | $228.000 | **$136.800** | $11.400 | $91.200 |
+| Advanced | hasta 1.000 | $36.000 | $432.000 | **$259.200** | $21.600 | $172.800 |
+| Unlimited | ilimitados | $72.000 | $864.000 | **$518.400** | $43.200 | $345.600 |
+
+- El anual se cobra en un solo pago por adelantado (en Mercado Pago, suscripción con frecuencia de 12 meses).
+- `plans` guarda ambos precios en centavos; si cambia el mensual, el anual se recalcula con el mismo 40 %.
+- Tabla `plans` (nombre, precio mensual/anual en centavos ARS, límites, flags de funciones como dominio propio) y `subscriptions` por tienda (plan, estado `active`/`past_due`/`canceled`, período actual, id de Mercado Pago).
+- Los límites se exigen en las Actions (ej. crear producto por encima del límite → 422 con mensaje para subir de plan). El panel de la tienda muestra plan, uso y botón para cambiar.
+- Referencia de límites y funciones: vercatalogo.com/#planes (el gratis incluye 500 visitas).
+
+### Cobro con Mercado Pago
+- Único medio de pago por ahora. Suscripciones recurrentes (preapproval de la API de Mercado Pago).
+- Webhook con verificación de firma e idempotente → actualiza `subscriptions`.
+- Variables: `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`, `MERCADOPAGO_WEBHOOK_SECRET`. Probar en sandbox con usuarios de prueba.
+- Falta de pago: días de gracia → suspensión automática (o pase a Gratis, a decidir) y aviso por email.
+
+### Super panel central (acceso aparte)
+- **Identidad separada:** tabla `platform_admins` con su propio guard de Sanctum; un usuario de tienda nunca puede volverse super admin (ni por `store_id` nulo ni por un bug). Reemplaza la idea "`users.store_id` null = super admin".
+- **Login y rutas propios:** `/platform/login` (cookie distinta de `admin_token`) y API `/api/v1/platform/*` con middleware propio.
+- **Seguridad:** 2FA obligatoria (TOTP), throttle más estricto, auditoría de cada acción (quién, qué tienda, cuándo). Sin alta pública: los super admins se crean solo por consola (`php artisan platform:admin`).
+- **Funciones:** listar tiendas (estado, plan, vencimiento, uso, dueño); crear tienda a mano (dueño con contraseña temporal); suspender/reactivar (revalidando el ISR para que deje de verse al instante); borrar (soft delete y purga diferida de datos y objetos de R2); ver estado de pago. Futuro: entrar como la tienda para soporte.
+
+### Decisiones pendientes
+- Límites además de productos (fotos por producto, usuarios, visitas, funciones de cada plan), prueba gratuita sí/no.
+- Falta de pago: suspender o pasar a Gratis; cuántos días de gracia.
+- ¿Se publica la tienda antes de verificar el email?
+- Retención de datos de una tienda borrada.
+- Dominio del super panel: ruta en el dominio raíz o subdominio propio (`admin.dominio.com`).
+- Proveedor de email transaccional (prerrequisito de verificación, recuperación y avisos de cobro).
+- Facturación electrónica (AFIP/ARCA) de las suscripciones: fuera de alcance por ahora.
+
+---
+
 ## Decisiones y deuda técnica
 
 - **DDD pragmático:** los modelos Eloquent viven en Domain como aggregates, y los contratos de repositorio reciben DTOs de Application (Domain depende de una capa externa). Corregible moviendo los DTOs a Domain.
@@ -287,17 +342,22 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 - [x] Auditoría WCAG AA (axe + Lighthouse) y corrección de hallazgos
 - [x] Decidir shadcn/ui y TanStack Query: adoptarlos o registrar formalmente que no se usan (decidido: ninguno por ahora)
 - [x] Probar contra R2 real: configurar `R2_*`, `IMAGE_HOSTS` y CORS del bucket (`PUT` desde el dominio del admin). Probado en dev con la Public Development URL (`r2.dev`); el e2e corre sin R2
-- [ ] Deploy: Hetzner (API, Postgres, worker con supervisor, backups), Vercel (frontend), DNS wildcard `*.dominio.com`, variables de producción
+- [ ] Deploy: Hetzner (API, Postgres, worker con supervisor, backups), Vercel (frontend), DNS wildcard `*.dominio.com`, variables de producción. **Se hace al final, después de completar P2** (decisión 2026-10-25)
 
-### P2 — producto
-- [ ] Alta de tiendas (hoy solo por seed/consola) y panel de super admin
-- [ ] Recuperación de contraseña por email / invitaciones (requiere configurar mail)
-- [ ] Sync de variantes que conserve IDs (prerequisito del carrito)
-- [ ] Paginación en home/categorías y productos de subcategorías
-- [ ] Dominios propios (`custom_domain`)
-- [ ] Limpieza de objetos huérfanos en R2 (job o lifecycle rule)
-- [ ] 2FA y registro de auditoría
-- [ ] Borrar la carpeta vacía `app/Domain/Category/Events`
+### P2 — SaaS y producto
+En este orden (ver [Visión de producto](#visión-de-producto-saas)):
+1. [ ] **Super panel, base:** `platform_admins` con guard propio, login aparte con 2FA, listado de tiendas, alta manual (tienda + dueño), suspender/reactivar, borrar, auditoría. Primero porque sirve para operar todo lo demás y no depende de pagos.
+2. [ ] **Planes y límites:** `plans` + `subscriptions`, límites aplicados en las Actions, plan y uso visibles en el panel. Las tiendas existentes quedan en Gratis.
+3. [ ] **Email transaccional:** recuperación de contraseña, verificación de email e invitaciones (requiere configurar mail).
+4. [ ] **Registro público en 3 pasos** con Turnstile y plan Gratis.
+5. [ ] **Mercado Pago:** checkout de planes pagos, webhook, cambio de plan, suspensión automática por falta de pago.
+6. Resto:
+   - [ ] Sync de variantes que conserve IDs (prerequisito del carrito)
+   - [ ] Paginación en home/categorías y productos de subcategorías
+   - [ ] Dominios propios (`custom_domain`), como función de plan
+   - [ ] Limpieza de objetos huérfanos en R2 (job o lifecycle rule)
+   - [ ] 2FA y registro de auditoría para usuarios de tienda (para la plataforma va en el punto 1)
+   - [ ] Borrar la carpeta vacía `app/Domain/Category/Events`
 
 ### Futuro
 - [ ] E-commerce completo: carrito, checkout, órdenes, pagos, stock transaccional
@@ -310,4 +370,4 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 |---|---|
 | 2026-10-23 | Módulos Stores + Products (6 entregables iniciales), luego verificación en Docker, storefront API, revalidación ISR, CRUD de categorías, uploads a R2, configuración de tienda, frontend storefront, auth + panel admin, gestión de usuarios. Revisión del HANDOFF contra el código y reorganización de este archivo. Revisión de `.gitignore` por seguridad y `git init` local (sin commit). |
 | 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. Identidad de git, primer commit y push a GitHub privado; el primer CI detectó que los tests llamaban al frontend real (corregido) y quedó en verde. **P0 completo.** |
-| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. P1: auditoría WCAG 2.2 AA con axe integrada al e2e (rama `P1_auditoria_WCAG`): primera corrida con violaciones de contraste, label y skip link; corregidas → a11y 27/27, e2e 20/20, Vitest 45/45, build OK. P1: decisión registrada: ni shadcn/ui ni TanStack Query por ahora (motivos y disparadores en Decisiones). P1: prueba contra R2 real (rama `P1_probar_contra_R2_real`): credenciales, URL pública r2.dev, CORS, subida de imagen de producto y logo desde el panel y visualización en la tienda vía `next/image`, todo OK; objetos y productos de prueba borrados. `IMAGE_HOSTS` en `frontend/.env.local`, e2e aislado de R2, login del e2e de a11y tolerante al throttle (fallaba en corridas rápidas); e2e 47/47 OK. |
+| 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. P1: auditoría WCAG 2.2 AA con axe integrada al e2e (rama `P1_auditoria_WCAG`): primera corrida con violaciones de contraste, label y skip link; corregidas → a11y 27/27, e2e 20/20, Vitest 45/45, build OK. P1: decisión registrada: ni shadcn/ui ni TanStack Query por ahora (motivos y disparadores en Decisiones). P1: prueba contra R2 real (rama `P1_probar_contra_R2_real`): credenciales, URL pública r2.dev, CORS, subida de imagen de producto y logo desde el panel y visualización en la tienda vía `next/image`, todo OK; objetos y productos de prueba borrados. `IMAGE_HOSTS` en `frontend/.env.local`, e2e aislado de R2, login del e2e de a11y tolerante al throttle (fallaba en corridas rápidas); e2e 47/47 OK. Visión de producto SaaS registrada (registro en 3 pasos con Turnstile, planes en ARS, Mercado Pago, super panel con acceso aparte) y P2 reordenado; el deploy pasa al final. Plan anual con 40 % de descuento decidido, con precios por plan. |
