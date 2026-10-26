@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Providers;
 
 use App\Application\Storefront\Listeners\RevalidateStorefront;
+use App\Domain\Platform\Repositories\PlatformStoreRepositoryInterface;
 use App\Domain\Product\Events\CategoriesChanged;
 use App\Domain\Product\Events\ProductCreated;
 use App\Domain\Product\Events\ProductDeleted;
@@ -15,10 +16,12 @@ use App\Domain\Shared\Tenancy\TenantContext;
 use App\Domain\Store\Contracts\StorefrontRevalidator;
 use App\Domain\Store\Contracts\UploadedObjectInspector;
 use App\Domain\Store\Contracts\UploadUrlSigner;
+use App\Domain\Store\Events\StoreAvailabilityChanged;
 use App\Domain\Store\Events\StoreSettingsUpdated;
 use App\Domain\Store\Repositories\StoreRepositoryInterface;
 use App\Domain\Store\Repositories\StoreUserRepositoryInterface;
 use App\Infrastructure\Persistence\Eloquent\EloquentCategoryRepository;
+use App\Infrastructure\Persistence\Eloquent\EloquentPlatformStoreRepository;
 use App\Infrastructure\Persistence\Eloquent\EloquentProductRepository;
 use App\Infrastructure\Persistence\Eloquent\EloquentStoreRepository;
 use App\Infrastructure\Persistence\Eloquent\EloquentStoreUserRepository;
@@ -36,6 +39,7 @@ final class DomainServiceProvider extends ServiceProvider
      */
     public array $bindings = [
         StoreRepositoryInterface::class => EloquentStoreRepository::class,
+        PlatformStoreRepositoryInterface::class => EloquentPlatformStoreRepository::class,
         StoreUserRepositoryInterface::class => EloquentStoreUserRepository::class,
         ProductRepositoryInterface::class => EloquentProductRepository::class,
         CategoryRepositoryInterface::class => EloquentCategoryRepository::class,
@@ -57,7 +61,7 @@ final class DomainServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        foreach ([ProductCreated::class, ProductUpdated::class, ProductDeleted::class, CategoriesChanged::class, StoreSettingsUpdated::class] as $event) {
+        foreach ([ProductCreated::class, ProductUpdated::class, ProductDeleted::class, CategoriesChanged::class, StoreSettingsUpdated::class, StoreAvailabilityChanged::class] as $event) {
             Event::listen($event, RevalidateStorefront::class);
         }
     }

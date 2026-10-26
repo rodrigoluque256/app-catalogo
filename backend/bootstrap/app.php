@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Domain\Auth\Exceptions\UserNotFoundException;
+use App\Domain\Platform\Exceptions\StoreNotFoundException;
 use App\Domain\Product\Exceptions\CategoryRecordNotFoundException;
 use App\Domain\Product\Exceptions\ProductNotFoundException;
 use App\Domain\Shared\Exceptions\DomainValidationException;
@@ -59,6 +60,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ], 404));
 
         $exceptions->render(fn (ProductNotFoundException $e): JsonResponse => new JsonResponse([
+            'message' => $e->getMessage(),
+        ], 404));
+
+        $exceptions->render(fn (StoreNotFoundException $e): JsonResponse => new JsonResponse([
             'message' => $e->getMessage(),
         ], 404));
     })->create();

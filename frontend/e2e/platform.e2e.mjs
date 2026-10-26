@@ -56,7 +56,14 @@ const logout = async () => {
 }
 
 let secret = ''
-let recoveryCode = ''
+let recoveryCodes = []
+const run = Date.now().toString(36)
+const storeName = `Tienda E2E ${run}`
+const storeSlug = `tienda-e2e-${run}`
+const ownerEmail = `dueno-${run}@e2e.test`
+let temporaryPassword = ''
+let storeUrl = ''
+page.on('dialog', (dialog) => dialog.accept())
 
 await step('sin sesión, /platform redirige al login de la plataforma', async () => {
   await page.goto(`${base}/platform`)
@@ -79,19 +86,15 @@ await step('primer ingreso: pide configurar el 2FA con QR y clave', async () => 
   await axe()
 })
 
-await step('un código incorrecto no activa el 2FA', async () => {
-  await page.getByLabel('Código de 6 dígitos').fill('000000')
-  await page.getByRole('button', { name: 'Activar y entrar' }).click()
-  await page.getByText('El código no es válido o ya se usó.').waitFor()
-})
-
+// Los códigos incorrectos los cubre Pest: acá cada intento cuenta para el límite de 5 por minuto del 2FA,
+// y este recorrido ya usa exactamente 5 (activar, app, recuperación, reuso y segunda recuperación).
 await step('el código correcto activa el 2FA y muestra 8 códigos de recuperación una vez', async () => {
   await page.getByLabel('Código de 6 dígitos').fill(totp(secret))
   await page.getByRole('button', { name: 'Activar y entrar' }).click()
   const codes = page.getByRole('list', { name: 'Códigos de recuperación' }).getByRole('listitem')
   await codes.first().waitFor()
   if ((await codes.count()) !== 8) throw new Error(`se esperaban 8 códigos, hay ${await codes.count()}`)
-  recoveryCode = (await codes.first().textContent()).trim()
+  recoveryCodes = (await codes.allTextContents()).map((code) => code.trim())
   await axe()
   await page.getByRole('button', { name: 'Ya los guardé, continuar' }).click()
   await page.getByRole('heading', { name: 'Hola, Admin Plataforma' }).waitFor()
@@ -122,7 +125,7 @@ await step('con un código de recuperación se entra una sola vez', async () => 
   await login()
   await page.waitForURL(/\/platform\/two-factor$/)
   await page.getByRole('button', { name: /usar un código de recuperación/ }).click()
-  await page.getByLabel('Código de recuperación').fill(recoveryCode)
+  await page.getByLabel('Código de recuperación').fill(recoveryCodes[0])
   await page.getByRole('button', { name: 'Entrar' }).click()
   await page.waitForURL(`${base}/platform`)
   await logout()
@@ -130,9 +133,91 @@ await step('con un código de recuperación se entra una sola vez', async () => 
   await login()
   await page.waitForURL(/\/platform\/two-factor$/)
   await page.getByRole('button', { name: /usar un código de recuperación/ }).click()
-  await page.getByLabel('Código de recuperación').fill(recoveryCode)
+  await page.getByLabel('Código de recuperación').fill(recoveryCodes[0])
   await page.getByRole('button', { name: 'Entrar' }).click()
   await page.getByText('El código de recuperación no es válido o ya se usó.').waitFor()
+
+  // El desafío sigue vigente: con otro código entra (sin otro login, que gastaría el límite de intentos).
+  await page.getByLabel('Código de recuperación').fill(recoveryCodes[1])
+  await page.getByRole('button', { name: 'Entrar' }).click()
+  await page.waitForURL(`${base}/platform`)
+})
+
+const storefrontStatus = async () => (await page.request.get(`${base}/s/${storeSlug}`)).status()
+
+await step('tiendas: listado con filtros', async () => {
+  await page.getByRole('link', { name: 'Tiendas', exact: true }).click()
+  await page.waitForURL('**/platform/stores')
+  await page.getByRole('link', { name: 'Tienda Demo' }).waitFor()
+  await axe()
+})
+
+await step('crear tienda: subdominio sugerido y contraseña temporal del dueño', async () => {
+  await page.getByRole('link', { name: '＋ Nueva tienda' }).click()
+  await page.getByLabel('Nombre de la tienda').fill(storeName)
+  if ((await page.getByLabel('Subdominio').inputValue()) !== storeSlug) throw new Error('no sugirió el subdominio')
+  await page.getByLabel('Nombre', { exact: true }).fill('Dueña E2E')
+  await page.getByLabel('Email').fill(ownerEmail)
+  await axe()
+  await page.getByRole('button', { name: 'Crear tienda' }).click()
+  await page.getByText(`Contraseña temporal para ${ownerEmail}`).waitFor()
+  temporaryPassword = (await page.locator('code').first().textContent()).trim()
+  await axe()
+  if ((await storefrontStatus()) !== 200) throw new Error('la tienda nueva no responde')
+})
+
+await step('crear tienda: subdominio reservado o repetido da error', async () => {
+  await page.goto(`${base}/platform/stores/new`)
+  await page.getByLabel('Nombre de la tienda').fill('Otra')
+  await page.getByLabel('Subdominio').fill('platform')
+  await page.getByLabel('Nombre', { exact: true }).fill('X')
+  await page.getByLabel('Email').fill(`otro-${run}@e2e.test`)
+  await page.getByRole('button', { name: 'Crear tienda' }).click()
+  await page.getByText('Ese subdominio está reservado por la plataforma.').waitFor()
+  await page.getByLabel('Subdominio').fill(storeSlug)
+  await page.getByRole('button', { name: 'Crear tienda' }).click()
+  await page.getByText('Ese subdominio ya está en uso.').waitFor()
+})
+
+await step('el dueño entra al panel de su tienda con la temporal y debe cambiarla', async () => {
+  const owner = await (await browser.newContext()).newPage()
+  await owner.goto(`${base}/admin/login`)
+  await owner.getByLabel('Email').fill(ownerEmail)
+  await owner.getByLabel('Contraseña').fill(temporaryPassword)
+  await owner.getByRole('button', { name: 'Ingresar' }).click()
+  await owner.waitForURL('**/admin/account')
+  await owner.getByRole('heading', { name: 'Elegí tu contraseña' }).waitFor()
+  await owner.context().close()
+})
+
+await step('suspender: la tienda deja de verse; reactivar: vuelve', async () => {
+  await page.goto(`${base}/platform/stores?search=${storeSlug}`)
+  await page.getByRole('link', { name: storeName }).click()
+  await page.waitForURL(/\/platform\/stores\/[0-9a-f-]{36}$/)
+  storeUrl = page.url()
+  await page.getByRole('heading', { name: storeName }).waitFor()
+  await axe()
+  await page.getByRole('button', { name: 'Suspender tienda' }).click()
+  await page.getByRole('button', { name: 'Reactivar tienda' }).waitFor()
+  if ((await storefrontStatus()) !== 404) throw new Error('la tienda suspendida sigue respondiendo')
+  await page.getByRole('button', { name: 'Reactivar tienda' }).click()
+  await page.getByRole('button', { name: 'Suspender tienda' }).waitFor()
+  if ((await storefrontStatus()) !== 200) throw new Error('la tienda reactivada no responde')
+})
+
+await step('borrar exige escribir el subdominio; restaurar la deja suspendida', async () => {
+  const remove = page.getByRole('button', { name: 'Borrar tienda' })
+  if (await remove.isEnabled()) throw new Error('el botón de borrar está habilitado sin confirmar')
+  await page.getByLabel(`Escribí “${storeSlug}” para confirmar`).fill(storeSlug)
+  await remove.click()
+  await page.waitForURL('**/platform/stores?status=deleted')
+  await page.getByRole('link', { name: storeName }).waitFor()
+  if ((await storefrontStatus()) !== 404) throw new Error('la tienda borrada sigue respondiendo')
+
+  await page.goto(storeUrl)
+  await page.getByRole('button', { name: 'Restaurar tienda' }).click()
+  await page.getByRole('button', { name: 'Reactivar tienda' }).waitFor()
+  await axe()
 })
 
 await browser.close()

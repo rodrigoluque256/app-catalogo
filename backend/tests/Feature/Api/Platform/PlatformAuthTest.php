@@ -8,7 +8,6 @@ use App\Domain\Store\Models\Store;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Testing\TestResponse;
 use PragmaRX\Google2FA\Google2FA;
 
 const PLATFORM_TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
@@ -17,14 +16,6 @@ const PLATFORM_TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 function totp(int $offset = 0): string
 {
     return (new Google2FA)->oathTotp(PLATFORM_TOTP_SECRET, intdiv(time(), 30) + $offset);
-}
-
-/** Request con un bearer token. Olvida el usuario cacheado por el guard entre requests del mismo test. */
-function withBearer(string $token, string $method, string $uri, array $data = []): TestResponse
-{
-    app('auth')->forgetGuards();
-
-    return test()->withToken($token)->json($method, $uri, $data);
 }
 
 function challengeFor(string $email = 'admin@plataforma.test'): string

@@ -25,7 +25,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
             </form>
           </div>
         </div>
-        <AdminNav items={[{ href: '/platform', label: 'Inicio' }]} />
+        <AdminNav items={[{ href: '/platform', label: 'Inicio' }, { href: '/platform/stores', label: 'Tiendas' }]} />
       </aside>
 
       <main id="contenido" tabIndex={-1} className="flex-1 p-4 outline-none md:p-8">{children}</main>

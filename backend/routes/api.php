@@ -9,6 +9,7 @@ use App\UI\Http\Controllers\Api\V1\Admin\StoreSettingsController;
 use App\UI\Http\Controllers\Api\V1\Admin\UploadController;
 use App\UI\Http\Controllers\Api\V1\Admin\UserController;
 use App\UI\Http\Controllers\Api\V1\Platform\AuthController as PlatformAuthController;
+use App\UI\Http\Controllers\Api\V1\Platform\StoreController as PlatformStoreController;
 use App\UI\Http\Controllers\Api\V1\Storefront\StorefrontController;
 use Illuminate\Support\Facades\Route;
 
@@ -68,3 +69,10 @@ Route::prefix('v1/platform/auth')->group(function (): void {
         Route::post('logout', [PlatformAuthController::class, 'logout']);
     });
 });
+
+Route::prefix('v1/platform')
+    ->middleware(['auth:sanctum', 'platform.admin', 'abilities:platform'])
+    ->group(function (): void {
+        Route::apiResource('stores', PlatformStoreController::class);
+        Route::post('stores/{store}/restore', [PlatformStoreController::class, 'restore']);
+    });

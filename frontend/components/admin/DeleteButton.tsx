@@ -3,9 +3,9 @@
 import { useState, useTransition } from 'react'
 import type { ActionResult } from '@/lib/admin/types'
 
-type Props = { label?: string; confirmText: string; action: () => Promise<ActionResult | void>; className?: string }
+type Props = { label?: string; pendingLabel?: string; confirmText: string; action: () => Promise<ActionResult | void>; className?: string }
 
-export function DeleteButton({ label = 'Eliminar', confirmText, action, className = 'text-sm text-red-600 hover:underline' }: Props) {
+export function DeleteButton({ label = 'Eliminar', pendingLabel = 'Eliminando…', confirmText, action, className = 'text-sm text-red-600 hover:underline' }: Props) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -23,7 +23,7 @@ export function DeleteButton({ label = 'Eliminar', confirmText, action, classNam
   return (
     <>
       <button type="button" onClick={run} disabled={pending} className={className}>
-        {pending ? 'Eliminando…' : label}
+        {pending ? pendingLabel : label}
       </button>
       {error && <span role="alert" className="ml-2 text-xs text-red-600">{error}</span>}
     </>

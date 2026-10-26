@@ -1,9 +1,11 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { platformRequest } from '@/lib/platform/api'
 import { clearPlatformCookies, clearRecoveryCodes, setChallengeToken, setPlatformToken, setRecoveryCodes } from '@/lib/platform/session'
-import type { LoginChallenge, PlatformToken } from '@/lib/platform/types'
+import type { ActionResult, FieldErrors } from '@/lib/admin/types'
+import type { CreatedStore, LoginChallenge, PlatformToken } from '@/lib/platform/types'
 
 export type PlatformLoginState = { error: string | null; email: string }
 
@@ -71,4 +73,54 @@ export async function platformLogoutAction(): Promise<void> {
   await platformRequest('auth/logout', { method: 'POST' })
   await clearPlatformCookies()
   redirect('/platform/login')
+}
+
+// ─── Tiendas ─────────────────────────────────────────────────────────────────────────────────────
+
+const failure = (result: { message: string; errors: FieldErrors }) => ({ ok: false as const, message: result.message, errors: result.errors })
+
+export type CreateStoreResult =
+  | { ok: true; storeId: string; slug: string; email: string; temporaryPassword: string }
+  | { ok: false; message: string; errors: FieldErrors }
+
+export async function createStoreAction(payload: { name: string; slug: string; owner_name: string; owner_email: string }): Promise<CreateStoreResult> {
+  const result = await platformRequest<CreatedStore>('stores', { method: 'POST', body: payload })
+
+  if (!result.ok) return failure(result)
+
+  revalidatePath('/platform', 'layout')
+  return {
+    ok: true,
+    storeId: result.data.id,
+    slug: result.data.slug,
+    email: result.data.owners[0]?.email ?? payload.owner_email,
+    temporaryPassword: result.data.temporary_password,
+  }
+}
+
+export async function setStoreStatusAction(id: string, status: 'active' | 'suspended'): Promise<ActionResult> {
+  const result = await platformRequest(`stores/${id}`, { method: 'PATCH', body: { status } })
+
+  if (!result.ok) return failure(result)
+
+  revalidatePath('/platform', 'layout')
+  return { ok: true }
+}
+
+export async function deleteStoreAction(id: string, confirmSlug: string): Promise<ActionResult> {
+  const result = await platformRequest(`stores/${id}`, { method: 'DELETE', body: { confirm_slug: confirmSlug } })
+
+  if (!result.ok) return failure(result)
+
+  revalidatePath('/platform', 'layout')
+  return { ok: true }
+}
+
+export async function restoreStoreAction(id: string): Promise<ActionResult> {
+  const result = await platformRequest(`stores/${id}/restore`, { method: 'POST' })
+
+  if (!result.ok) return failure(result)
+
+  revalidatePath('/platform', 'layout')
+  return { ok: true }
 }

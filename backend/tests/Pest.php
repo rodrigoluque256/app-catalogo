@@ -7,6 +7,7 @@ use App\Domain\Store\Contracts\UploadedObjectInspector;
 use App\Domain\Store\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -43,4 +44,17 @@ function actingAsStoreUser(Store $store, ?string $role = 'owner'): User
     Sanctum::actingAs($user);
 
     return $user;
+}
+
+/**
+ * Request con un bearer token real (no Sanctum::actingAs). Olvida el usuario cacheado por el guard
+ * entre requests del mismo test, para poder alternar tokens.
+ *
+ * @param  array<string, mixed>  $data
+ */
+function withBearer(string $token, string $method, string $uri, array $data = []): TestResponse
+{
+    app('auth')->forgetGuards();
+
+    return test()->withToken($token)->json($method, $uri, $data);
 }

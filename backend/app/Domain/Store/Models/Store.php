@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 
 /**
@@ -90,6 +91,23 @@ class Store extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /**
+     * Usuarios con rol owner en esta tienda. Consulta directa a model_has_roles (team = la tienda) porque la
+     * relación roles() de Spatie filtra por el team del request, que en el super panel no existe.
+     *
+     * @return HasMany<User, $this>
+     */
+    public function owners(): HasMany
+    {
+        return $this->users()->whereExists(fn (QueryBuilder $query) => $query->selectRaw('1')
+            ->from('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->whereColumn('model_has_roles.model_id', 'users.id')
+            ->whereColumn('model_has_roles.team_id', 'users.store_id')
+            ->where('model_has_roles.model_type', (new User)->getMorphClass())
+            ->where('roles.name', 'owner'));
     }
 
     protected static function newFactory(): StoreFactory

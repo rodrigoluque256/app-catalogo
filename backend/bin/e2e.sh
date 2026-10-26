@@ -42,7 +42,7 @@ done
 
 # El dev server compila cada ruta en su primera visita: se precalientan para que no venzan los timeouts del test.
 for path in /admin /admin/products /admin/products/new /admin/categories /admin/categories/new /admin/settings /admin/users /admin/account \
-  /s/demo /s/demo/c/remeras /s/demo/p/remera-oversize-algodon /s/demo/buscar /platform/login /platform/two-factor /platform/recovery-codes /platform; do
+  /s/demo /s/demo/c/remeras /s/demo/p/remera-oversize-algodon /s/demo/buscar /platform/login /platform/two-factor /platform/recovery-codes /platform /platform/stores /platform/stores/new; do
   "${compose[@]}" exec -T frontend-e2e wget -qO /dev/null "http://localhost:3000${path}" 2>/dev/null || true
 done
 

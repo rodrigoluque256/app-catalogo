@@ -15,17 +15,18 @@
 | Control de versiones | GitHub privado [`rodrigoluque256/app-catalogo`](https://github.com/rodrigoluque256/app-catalogo) (rama `main`, SSH). Identidad local del repo: Rodrigo Luque &lt;rodrigoluque256@gmail.com&gt; |
 | CI | GitHub Actions en verde (backend + frontend) desde el commit `6b7aae2` |
 
-**Última verificación (2026-10-26):**
+**Última verificación (2026-10-26, P2.1b):**
 
 | Chequeo | Resultado |
 |---|---|
 | `migrate:fresh --seed` | OK |
-| Pest (backend) | 108/108 (478 assertions) |
+| Pest (backend) | 117/117 (552 assertions) |
 | PHPStan nivel 8 | sin errores |
-| Vitest (frontend) | 51/51 |
+| Vitest (frontend) | 54/54 |
 | e2e de navegador del panel (Playwright, 20 pasos) | OK |
 | Auditoría WCAG 2.2 AA con axe (tienda escritorio/móvil + panel, 27 pasos) | OK, 0 violaciones |
-| e2e del super panel: login + 2FA + recuperación, con axe (9 pasos) | OK |
+| e2e del super panel: login + 2FA + recuperación + gestión de tiendas, con axe (14 pasos) | OK |
+| Prueba real en dev: crear → suspender (404) → reactivar (200) → borrar (404) con la cola y el ISR de verdad | OK |
 | Build de producción de Next + ISR (MISS → HIT) + revalidación real | OK |
 
 Leyenda: `[x]` hecho · `[ ]` pendiente · `[~]` parcial
@@ -47,6 +48,7 @@ Leyenda: `[x]` hecho · `[ ]` pendiente · `[~]` parcial
 | Storefront público | `GET /api/v1/storefront/{store, categories, products, products/{slug}}` (header `X-Store-Slug`) | público | 9 |
 | Revalidación ISR | listener en cola → `POST` al frontend | — | 7 |
 | Super panel: acceso | `POST /api/v1/platform/auth/login`, `POST /platform/auth/two-factor/{setup,confirm,verify}` (token de desafío), `GET /platform/auth/me`, `POST /platform/auth/logout` | `platform.admin` | 15 + 5 (comando) |
+| Super panel: tiendas | `GET/POST /api/v1/platform/stores`, `GET/PATCH/DELETE /platform/stores/{id}`, `POST /platform/stores/{id}/restore` | `platform.admin` | 9 |
 
 Rutas: [backend/routes/api.php](backend/routes/api.php). Middleware del grupo admin: `auth:sanctum`, `tenant.user`, `password.changed`. Super panel: `auth:sanctum`, `platform.admin`, `abilities:platform` (o `abilities:platform:challenge` en el 2FA).
 
@@ -59,7 +61,7 @@ Roles (globales, asignados por tienda): **owner** = todos los permisos · **edit
 | Storefront | `/s/[store]` (inicio con destacados), `/c/[slug]`, `/p/[slug]`, `/buscar` | Se reescribe desde `{slug}.dominio` vía [proxy.ts](frontend/proxy.ts). ISR con tags; `/buscar` sin caché. Tema por tienda con contraste automático. Botón de WhatsApp (`wa.me`) con mensaje precargado desde el producto/variante. |
 | Panel admin | `/admin/login`, `/admin`, `/admin/products[/new\|/{id}]`, `/admin/categories[/new\|/{id}]`, `/admin/settings`, `/admin/users`, `/admin/account` | Sesión con token Sanctum guardado del lado servidor ([lib/admin/session.ts](frontend/lib/admin/session.ts)). Primer ingreso forzado a cambiar contraseña. |
 | Revalidación | `POST /api/revalidate` | Valida `x-revalidate-secret` y llama `revalidateTag` por cada tag. |
-| Super panel | `/platform/login`, `/platform/two-factor`, `/platform/recovery-codes`, `/platform` | Cookies propias limitadas a `/platform` ([lib/platform/session.ts](frontend/lib/platform/session.ts)). Por ahora solo acceso; la gestión de tiendas es P2.1b. Cliente HTTP común de ambos paneles: [lib/server-api.ts](frontend/lib/server-api.ts). |
+| Super panel | `/platform/login`, `/platform/two-factor`, `/platform/recovery-codes`, `/platform` (contadores), `/platform/stores[/new\|/{id}]` | Cookies propias limitadas a `/platform` ([lib/platform/session.ts](frontend/lib/platform/session.ts)). Listado con búsqueda y filtro por estado, alta con subdominio sugerido ([lib/slug.ts](frontend/lib/slug.ts)) y contraseña temporal del dueño, detalle con suspender/reactivar, borrar (escribiendo el subdominio) y restaurar. Cliente HTTP común de ambos paneles: [lib/server-api.ts](frontend/lib/server-api.ts). |
 
 Detalle: [frontend/README.md](frontend/README.md).
 
@@ -165,6 +167,13 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 - **Alta solo por consola:** `php artisan platform:admin <email> [--name=] [--reset-2fa]` (pide la contraseña oculta dos veces; resetear revoca sesiones). Seed de desarrollo: `admin@plataforma.test` / `password`, sin 2FA (el primer ingreso lo configura).
 - **Frontend:** cookies httpOnly `platform_token` y `platform_challenge` (path `/platform`, `SameSite=Strict`); los códigos de recuperación se muestran en `/platform/recovery-codes` desde una cookie de 10 min limitada a esa ruta, que se borra al confirmar "Ya los guardé" (una Server Action que escribe cookies hace que Next vuelva a renderizar la página actual, y la del 2FA ya no tendría desafío).
 
+### Super panel: gestión de tiendas
+- **Listado** ([EloquentPlatformStoreRepository](backend/app/Infrastructure/Persistence/Eloquent/EloquentPlatformStoreRepository.php)): todas las tiendas sin tenant; `status` = `active`/`suspended` (por defecto, ambas) o `deleted` (solo borradas); búsqueda por nombre, slug o email del dueño; dueños vía `Store::owners()` (consulta directa a `model_has_roles` con `team_id = users.store_id`, porque `roles()` de Spatie filtra por el team del request); conteo de productos sin el `StoreScope`.
+- **Alta** ([CreateStoreAction](backend/app/Application/Platform/Actions/Stores/CreateStoreAction.php)): tienda + dueño (`owner`) en una transacción, reutilizando `CreateUserAction` dentro de `TenantContext::runAs()` + `setPermissionsTeamId()`. Contraseña temporal devuelta una sola vez. Slug: formato DNS, 3–63, único **también contra borradas** y no reservado ([ReservedSlugs](backend/app/Domain/Store/ReservedSlugs.php): `www`, `api`, `admin`, `platform`, `s`, `registro`…).
+- **Suspender / reactivar:** `PATCH {status}`; idempotente; suspender revoca los tokens de los usuarios de la tienda. **Borrar:** soft delete con `confirm_slug` obligatorio (422 si no coincide), revoca tokens; el slug sigue ocupado. **Restaurar:** vuelve como **suspendida** (se reactiva a propósito). Una tienda borrada no cambia de estado hasta restaurarla.
+- **ISR:** [StoreAvailabilityChanged](backend/app/Domain/Store/Events/StoreAvailabilityChanged.php) implementa `RevalidatesRegardlessOfStatus` (trae el slug): `RevalidateStorefront` revalida `store:{slug}` aunque la tienda ya no esté activa. Como el layout del storefront depende de ese tag, toda la tienda pasa a 404 (o vuelve) en el próximo pedido. Los demás eventos siguen ignorando tiendas inactivas. Ojo: los eventos que revalidan se registran en una lista explícita en [DomainServiceProvider](backend/app/Infrastructure/Providers/DomainServiceProvider.php).
+- **Auditoría:** `store_created` (con email del dueño), `store_suspended`, `store_reactivated`, `store_deleted`, `store_restored`, con `store_id` y `{slug}`.
+
 ---
 
 ## Tests
@@ -183,12 +192,13 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 | Feature | [RevalidationTest](backend/tests/Feature/Storefront/RevalidationTest.php) | 7 |
 | Feature | [PlatformAuthTest](backend/tests/Feature/Api/Platform/PlatformAuthTest.php) | 15 |
 | Feature | [PlatformAdminCommandTest](backend/tests/Feature/Console/PlatformAdminCommandTest.php) | 5 |
+| Feature | [StoreManagementTest](backend/tests/Feature/Api/Platform/StoreManagementTest.php) | 9 |
 | — | `ExampleTest` (Unit + Feature, del skeleton) | 2 |
-| **Backend total** | | **108** |
-| Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts), [seo.test.ts](frontend/tests/seo.test.ts), [server-api.test.ts](frontend/tests/server-api.test.ts) | 51 |
+| **Backend total** | | **117** |
+| Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts), [seo.test.ts](frontend/tests/seo.test.ts), [server-api.test.ts](frontend/tests/server-api.test.ts), [slug.test.ts](frontend/tests/slug.test.ts) | 54 |
 | e2e | [admin.e2e.mjs](frontend/e2e/admin.e2e.mjs) (Playwright, navegador real) | 20 pasos |
 | a11y | [a11y.e2e.mjs](frontend/e2e/a11y.e2e.mjs) (axe-core, WCAG 2.2 AA, corre en `bin/e2e.sh` después del e2e) | 27 pasos |
-| Super panel | [platform.e2e.mjs](frontend/e2e/platform.e2e.mjs) (login, 2FA con TOTP calculado en Node, recuperación, separación de sesiones, axe) | 9 pasos |
+| Super panel | [platform.e2e.mjs](frontend/e2e/platform.e2e.mjs) (login, 2FA con TOTP calculado en Node, recuperación, separación de sesiones; tiendas: alta, subdominio reservado/repetido, login del dueño, suspender/reactivar con 404/200 real, borrar y restaurar; axe) | 14 pasos |
 
 Salvaguarda: [tests/TestCase.php](backend/tests/TestCase.php) aborta si la base no termina en `_test`, y [phpunit.xml](backend/phpunit.xml) fuerza `DB_*` en `<env>` y `<server>`.
 
@@ -365,7 +375,8 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 En este orden (ver [Visión de producto](#visión-de-producto-saas)):
 1. **Super panel, base** (primero porque sirve para operar todo lo demás y no depende de pagos), en dos entregas:
    - [x] **1a. Acceso:** `platform_admins`, login aparte en `/platform` con 2FA obligatoria (TOTP + códigos de recuperación), alta por consola, auditoría y panel base
-   - [ ] **1b. Gestión de tiendas:** listado, alta manual (tienda + dueño), suspender/reactivar (con revalidación ISR), borrar (soft delete), auditoría de cada acción; reservar el slug `platform`
+   - [x] **1b. Gestión de tiendas:** listado con búsqueda y filtros, alta manual (tienda + dueño con contraseña temporal), suspender/reactivar (con revalidación ISR), borrar (soft delete, confirmando el subdominio) y restaurar, auditoría de cada acción, slugs reservados
+   - [ ] Pendiente derivado: purga definitiva de tiendas borradas (datos + objetos en R2) según la retención que se decida; ver Decisiones pendientes
 2. [ ] **Planes y límites:** `plans` + `subscriptions`, límites aplicados en las Actions, plan y uso visibles en el panel. Las tiendas existentes quedan en Gratis.
 3. [ ] **Email transaccional:** recuperación de contraseña, verificación de email e invitaciones (requiere configurar mail).
 4. [ ] **Registro público en 3 pasos** con Turnstile y plan Gratis.
@@ -391,3 +402,4 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
 | 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. Identidad de git, primer commit y push a GitHub privado; el primer CI detectó que los tests llamaban al frontend real (corregido) y quedó en verde. **P0 completo.** |
 | 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. P1: auditoría WCAG 2.2 AA con axe integrada al e2e (rama `P1_auditoria_WCAG`): primera corrida con violaciones de contraste, label y skip link; corregidas → a11y 27/27, e2e 20/20, Vitest 45/45, build OK. P1: decisión registrada: ni shadcn/ui ni TanStack Query por ahora (motivos y disparadores en Decisiones). P1: prueba contra R2 real (rama `P1_probar_contra_R2_real`): credenciales, URL pública r2.dev, CORS, subida de imagen de producto y logo desde el panel y visualización en la tienda vía `next/image`, todo OK; objetos y productos de prueba borrados. `IMAGE_HOSTS` en `frontend/.env.local`, e2e aislado de R2, login del e2e de a11y tolerante al throttle (fallaba en corridas rápidas); e2e 47/47 OK. Visión de producto SaaS registrada (registro en 3 pasos con Turnstile, planes en ARS, Mercado Pago, super panel con acceso aparte) y P2 reordenado; el deploy pasa al final. Plan anual con 40 % de descuento decidido, con precios por plan. |
 | 2026-10-26 | P2.1a: acceso al super panel (rama `P2_alta_tiendas_y_panel_super_admin`): tabla `platform_admins` y `platform_audit_logs`, login en dos pasos con token de desafío, 2FA TOTP obligatoria con QR y 8 códigos de recuperación, throttle propio, comando `platform:admin`, páginas `/platform/*` con cookies propias y cliente HTTP común (`lib/server-api.ts`). Arreglos: reintento del login en a11y.e2e (el aviso viejo confundía la espera) y botón de cerrar sesión tapado por el indicador de Next en dev. Pest 108/108, PHPStan OK, Vitest 51/51, build OK, e2e 20 + 27 + 9 OK. |
+| 2026-10-26 | P2.1b: gestión de tiendas en el super panel: listado (búsqueda, filtros, dueños y conteos), alta de tienda + dueño con contraseña temporal, suspender/reactivar, borrar con confirmación del subdominio y restaurar (vuelve suspendida), slugs reservados, auditoría. Corregido: `RevalidateStorefront` ignoraba tiendas inactivas, así que suspender no habría apagado la tienda cacheada (nuevo `RevalidatesRegardlessOfStatus`). Pest 117/117, PHPStan OK, Vitest 54/54, build OK, e2e 20 + 27 + 14 OK, prueba real en dev 200 → 404 → 200 → 404. |

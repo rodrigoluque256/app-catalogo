@@ -11,7 +11,8 @@ export function AdminNav({ items }: { items: NavItem[] }) {
   return (
     <nav aria-label="Panel" className="flex gap-1 overflow-x-auto md:flex-col">
       {items.map((item) => {
-        const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href)
+        // La raíz de cada panel solo se marca en sí misma; el resto también en sus subpáginas.
+        const active = ['/admin', '/platform'].includes(item.href) ? pathname === item.href : pathname.startsWith(item.href)
 
         return (
           <Link
