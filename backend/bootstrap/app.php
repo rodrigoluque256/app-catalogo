@@ -6,7 +6,9 @@ use App\Domain\Auth\Exceptions\UserNotFoundException;
 use App\Domain\Product\Exceptions\CategoryRecordNotFoundException;
 use App\Domain\Product\Exceptions\ProductNotFoundException;
 use App\Domain\Shared\Exceptions\DomainValidationException;
+use App\UI\Console\Commands\PlatformAdminCommand;
 use App\UI\Http\Middleware\EnsurePasswordChanged;
+use App\UI\Http\Middleware\EnsurePlatformAdmin;
 use App\UI\Http\Middleware\ResolveTenantFromHeader;
 use App\UI\Http\Middleware\ResolveTenantFromUser;
 use Illuminate\Auth\Middleware\Authorize;
@@ -15,6 +17,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -23,11 +26,14 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands([PlatformAdminCommand::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'tenant.user' => ResolveTenantFromUser::class,
             'tenant.header' => ResolveTenantFromHeader::class,
             'password.changed' => EnsurePasswordChanged::class,
+            'platform.admin' => EnsurePlatformAdmin::class,
+            'abilities' => CheckAbilities::class,
         ]);
 
         // El team de Spatie (= store) debe estar fijado antes de evaluar `can:`.

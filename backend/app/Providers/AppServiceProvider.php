@@ -25,5 +25,15 @@ class AppServiceProvider extends ServiceProvider
         // 5 intentos por minuto por email+IP: frena el adivinado de contraseñas sin bloquear a otros usuarios de la misma IP.
         RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(5)
             ->by(strtolower((string) $request->input('email')).'|'.$request->ip()));
+
+        // Super panel: además del límite por email+IP, uno por IP para frenar el barrido de emails.
+        RateLimiter::for('platform-login', fn (Request $request): array => [
+            Limit::perMinute(5)->by('platform|'.strtolower((string) $request->input('email')).'|'.$request->ip()),
+            Limit::perMinute(20)->by('platform-ip|'.$request->ip()),
+        ]);
+
+        // Códigos de 6 dígitos: 5 intentos por minuto por administrador+IP.
+        RateLimiter::for('platform-2fa', fn (Request $request): Limit => Limit::perMinute(5)
+            ->by('platform-2fa|'.$request->user()?->getAuthIdentifier().'|'.$request->ip()));
     }
 }

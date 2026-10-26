@@ -8,6 +8,7 @@ use App\UI\Http\Controllers\Api\V1\Admin\ProductController;
 use App\UI\Http\Controllers\Api\V1\Admin\StoreSettingsController;
 use App\UI\Http\Controllers\Api\V1\Admin\UploadController;
 use App\UI\Http\Controllers\Api\V1\Admin\UserController;
+use App\UI\Http\Controllers\Api\V1\Platform\AuthController as PlatformAuthController;
 use App\UI\Http\Controllers\Api\V1\Storefront\StorefrontController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,3 +49,22 @@ Route::prefix('v1/storefront')
         Route::get('products', [StorefrontController::class, 'products']);
         Route::get('products/{slug}', [StorefrontController::class, 'product']);
     });
+
+// Super panel: identidad, tokens y throttle propios. Ver EnsurePlatformAdmin.
+Route::prefix('v1/platform/auth')->group(function (): void {
+    Route::post('login', [PlatformAuthController::class, 'login'])->middleware('throttle:platform-login');
+
+    // Solo con el token de desafío (contraseña correcta, 2FA pendiente). El throttle va donde se prueban códigos.
+    Route::middleware(['auth:sanctum', 'platform.admin', 'abilities:platform:challenge'])
+        ->prefix('two-factor')
+        ->group(function (): void {
+            Route::post('setup', [PlatformAuthController::class, 'setup']);
+            Route::post('confirm', [PlatformAuthController::class, 'confirm'])->middleware('throttle:platform-2fa');
+            Route::post('verify', [PlatformAuthController::class, 'verify'])->middleware('throttle:platform-2fa');
+        });
+
+    Route::middleware(['auth:sanctum', 'platform.admin', 'abilities:platform'])->group(function (): void {
+        Route::get('me', [PlatformAuthController::class, 'me']);
+        Route::post('logout', [PlatformAuthController::class, 'logout']);
+    });
+});

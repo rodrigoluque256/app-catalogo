@@ -135,7 +135,7 @@ services:
     command: >-
       sh -c 'mkdir -p /tmp/run && cd /tmp/run && npm init -y >/dev/null
       && npm i playwright@1.64.1 @axe-core/playwright@4.14.0 >/dev/null && cp /work/*.e2e.mjs .
-      && { node admin.e2e.mjs; a=$$?; node a11y.e2e.mjs; b=$$?; exit $$((a | b)); }'
+      && { node admin.e2e.mjs; a=$$?; node a11y.e2e.mjs; b=$$?; node platform.e2e.mjs; c=$$?; exit $$((a | b | c)); }'
 
   pgsql:
     image: postgres:16-alpine

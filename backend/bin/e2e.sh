@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Tests de navegador contra un stack aislado (base catalogo_e2e, API y frontend propios):
-# admin.e2e.mjs recorre el panel y a11y.e2e.mjs audita tienda y panel con axe (WCAG 2.2 AA).
+# admin.e2e.mjs recorre el panel, a11y.e2e.mjs audita tienda y panel con axe (WCAG 2.2 AA) y
+# platform.e2e.mjs recorre el login del super panel con 2FA.
 # Cada corrida parte del seed: no deja datos en la base de desarrollo.
 #   ./bin/e2e.sh          corre y apaga el stack e2e al terminar
 #   ./bin/e2e.sh --keep   lo deja levantado para inspeccionarlo
-# Capturas y resultados: frontend/e2e/output/ (results.txt y a11y-results.txt)
+# Capturas y resultados: frontend/e2e/output/ (results.txt, a11y-results.txt y platform-results.txt)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -41,7 +42,7 @@ done
 
 # El dev server compila cada ruta en su primera visita: se precalientan para que no venzan los timeouts del test.
 for path in /admin /admin/products /admin/products/new /admin/categories /admin/categories/new /admin/settings /admin/users /admin/account \
-  /s/demo /s/demo/c/remeras /s/demo/p/remera-oversize-algodon /s/demo/buscar; do
+  /s/demo /s/demo/c/remeras /s/demo/p/remera-oversize-algodon /s/demo/buscar /platform/login /platform/two-factor /platform/recovery-codes /platform; do
   "${compose[@]}" exec -T frontend-e2e wget -qO /dev/null "http://localhost:3000${path}" 2>/dev/null || true
 done
 

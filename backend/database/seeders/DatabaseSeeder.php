@@ -7,6 +7,7 @@ namespace Database\Seeders;
 use App\Application\Product\Actions\CreateProductAction;
 use App\Application\Product\DTOs\CreateProductData;
 use App\Application\Product\DTOs\ProductVariantData;
+use App\Domain\Platform\Models\PlatformAdmin;
 use App\Domain\Product\Enums\ProductStatus;
 use App\Domain\Product\Models\Category;
 use App\Domain\Shared\Tenancy\TenantContext;
@@ -19,6 +20,9 @@ class DatabaseSeeder extends Seeder
     public function run(TenantContext $tenant, CreateProductAction $createProduct): void
     {
         $this->call(RolesAndPermissionsSeeder::class);
+
+        // Super admin de desarrollo, sin 2FA: el primer ingreso a /platform obliga a configurarlo.
+        PlatformAdmin::factory()->create(['name' => 'Admin Plataforma', 'email' => 'admin@plataforma.test']);
 
         $store = Store::factory()->create([
             'name' => 'Tienda Demo',

@@ -22,7 +22,8 @@ final readonly class LoginAction
     ) {}
 
     /**
-     * Solo usuarios de una tienda activa: el super admin (store_id null) no entra al panel de tiendas.
+     * Solo usuarios de una tienda activa. Los administradores de la plataforma son otra tabla
+     * (`platform_admins`) con su propio login: ver PlatformLoginAction.
      *
      * @return array{user: User, token: string}
      *

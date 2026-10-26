@@ -95,6 +95,8 @@ await step('panel: iniciar sesión', async () => {
   // admin.e2e.mjs ya entró 5 veces como dueño; si fue rápido, el límite (5/min por email+IP) sigue activo.
   if (!(await submit())) {
     await page.waitForTimeout(61_000)
+    // Se recarga: el aviso del intento anterior sigue en pantalla y confundiría la espera.
+    await page.goto(`${base}/admin/login`)
     if (!(await submit())) throw new Error('el login sigue limitado')
   }
 })

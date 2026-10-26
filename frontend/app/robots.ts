@@ -8,8 +8,8 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   const slug = storeSlugFromHost((await headers()).get('host'), process.env.ROOT_DOMAIN ?? 'localhost')
 
   if (slug === null) {
-    // Dominio raíz: el panel no se indexa y /s/... es la copia de las tiendas sin subdominio.
-    return { rules: { userAgent: '*', disallow: ['/admin', '/s/'] } }
+    // Dominio raíz: los paneles no se indexan y /s/... es la copia de las tiendas sin subdominio.
+    return { rules: { userAgent: '*', disallow: ['/admin', '/platform', '/s/'] } }
   }
 
   return {

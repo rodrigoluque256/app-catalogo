@@ -15,16 +15,17 @@
 | Control de versiones | GitHub privado [`rodrigoluque256/app-catalogo`](https://github.com/rodrigoluque256/app-catalogo) (rama `main`, SSH). Identidad local del repo: Rodrigo Luque &lt;rodrigoluque256@gmail.com&gt; |
 | CI | GitHub Actions en verde (backend + frontend) desde el commit `6b7aae2` |
 
-**Última verificación (2026-10-23):**
+**Última verificación (2026-10-26):**
 
 | Chequeo | Resultado |
 |---|---|
 | `migrate:fresh --seed` | OK |
-| Pest (backend) | 88/88 (374 assertions) |
+| Pest (backend) | 108/108 (478 assertions) |
 | PHPStan nivel 8 | sin errores |
-| Vitest (frontend) | 45/45 |
+| Vitest (frontend) | 51/51 |
 | e2e de navegador del panel (Playwright, 20 pasos) | OK |
 | Auditoría WCAG 2.2 AA con axe (tienda escritorio/móvil + panel, 27 pasos) | OK, 0 violaciones |
+| e2e del super panel: login + 2FA + recuperación, con axe (9 pasos) | OK |
 | Build de producción de Next + ISR (MISS → HIT) + revalidación real | OK |
 
 Leyenda: `[x]` hecho · `[ ]` pendiente · `[~]` parcial
@@ -45,8 +46,9 @@ Leyenda: `[x]` hecho · `[ ]` pendiente · `[~]` parcial
 | Mi tienda | `GET/PATCH /api/v1/admin/store` | `store.manage` | 11 |
 | Storefront público | `GET /api/v1/storefront/{store, categories, products, products/{slug}}` (header `X-Store-Slug`) | público | 9 |
 | Revalidación ISR | listener en cola → `POST` al frontend | — | 7 |
+| Super panel: acceso | `POST /api/v1/platform/auth/login`, `POST /platform/auth/two-factor/{setup,confirm,verify}` (token de desafío), `GET /platform/auth/me`, `POST /platform/auth/logout` | `platform.admin` | 15 + 5 (comando) |
 
-Rutas: [backend/routes/api.php](backend/routes/api.php). Middleware del grupo admin: `auth:sanctum`, `tenant.user`, `password.changed`.
+Rutas: [backend/routes/api.php](backend/routes/api.php). Middleware del grupo admin: `auth:sanctum`, `tenant.user`, `password.changed`. Super panel: `auth:sanctum`, `platform.admin`, `abilities:platform` (o `abilities:platform:challenge` en el 2FA).
 
 Roles (globales, asignados por tienda): **owner** = todos los permisos · **editor** = `products.manage`. Seeder: [RolesAndPermissionsSeeder](backend/database/seeders/RolesAndPermissionsSeeder.php). En bases existentes, después de agregar permisos: `php artisan db:seed --class=RolesAndPermissionsSeeder`.
 
@@ -57,6 +59,7 @@ Roles (globales, asignados por tienda): **owner** = todos los permisos · **edit
 | Storefront | `/s/[store]` (inicio con destacados), `/c/[slug]`, `/p/[slug]`, `/buscar` | Se reescribe desde `{slug}.dominio` vía [proxy.ts](frontend/proxy.ts). ISR con tags; `/buscar` sin caché. Tema por tienda con contraste automático. Botón de WhatsApp (`wa.me`) con mensaje precargado desde el producto/variante. |
 | Panel admin | `/admin/login`, `/admin`, `/admin/products[/new\|/{id}]`, `/admin/categories[/new\|/{id}]`, `/admin/settings`, `/admin/users`, `/admin/account` | Sesión con token Sanctum guardado del lado servidor ([lib/admin/session.ts](frontend/lib/admin/session.ts)). Primer ingreso forzado a cambiar contraseña. |
 | Revalidación | `POST /api/revalidate` | Valida `x-revalidate-secret` y llama `revalidateTag` por cada tag. |
+| Super panel | `/platform/login`, `/platform/two-factor`, `/platform/recovery-codes`, `/platform` | Cookies propias limitadas a `/platform` ([lib/platform/session.ts](frontend/lib/platform/session.ts)). Por ahora solo acceso; la gestión de tiendas es P2.1b. Cliente HTTP común de ambos paneles: [lib/server-api.ts](frontend/lib/server-api.ts). |
 
 Detalle: [frontend/README.md](frontend/README.md).
 
@@ -114,7 +117,9 @@ Nota: existe una carpeta vacía `app/Domain/Category/Events` (sobrante; `Categor
 | [000006](backend/database/migrations/2026_10_23_000006_create_product_images_table.php) | `product_images` | key de R2, una sola principal por producto, `variant_id` opcional |
 | [000007](backend/database/migrations/2026_10_23_000007_create_permission_tables.php) | Spatie | `team_id` UUID (team = store) |
 | [000008](backend/database/migrations/2026_10_23_000008_add_must_change_password_to_users_table.php) | `users` | `must_change_password` |
-| [190444](backend/database/migrations/2026_10_23_190444_create_personal_access_tokens_table.php) | Sanctum | tokens de API |
+| [190444](backend/database/migrations/2026_10_23_190444_create_personal_access_tokens_table.php) | Sanctum | tokens de API (polimórficos: `User` y `PlatformAdmin`) |
+| [2026_10_26_000001](backend/database/migrations/2026_10_26_000001_create_platform_admins_table.php) | `platform_admins` | super admins, tabla aparte de `users`; secreto TOTP y códigos de recuperación cifrados |
+| [2026_10_26_000002](backend/database/migrations/2026_10_26_000002_create_platform_audit_logs_table.php) | `platform_audit_logs` | auditoría del super panel; `store_id` sin FK para sobrevivir al borrado |
 
 Garantías: IDs UUID v7 · unicidades con índices parciales `WHERE deleted_at IS NULL` · **FKs compuestas `(x_id, store_id)`** (la base impide referenciar filas de otra tienda) · requiere PostgreSQL ≥ 15 por `ON DELETE SET NULL (columna)`.
 
@@ -151,6 +156,15 @@ Errores de dominio → 422 con el mismo formato que la validación de Laravel. R
 ### Usuarios y contraseñas
 Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez) → `must_change_password`; el middleware `password.changed` bloquea la API admin con 403 `password_change_required` hasta cambiarla. No se puede eliminar ni cambiar el rol de uno mismo; la tienda conserva siempre al menos un dueño. Email único en toda la plataforma. Borrar o resetear revoca tokens. Contraseñas: ≥ 10 caracteres con letras y números. Login: token de 12 h, mensaje genérico, throttle 5/min por email+IP.
 
+### Super panel: acceso
+- **Identidad:** `PlatformAdmin` ([modelo](backend/app/Domain/Platform/Models/PlatformAdmin.php)), tabla `platform_admins`, sin tienda ni roles. Un token de plataforma en `/api/v1/admin/*` da 403 (`tenant.user` exige `User`); un token de tienda en `/api/v1/platform/*` da 403 ([EnsurePlatformAdmin](backend/app/UI/Http/Middleware/EnsurePlatformAdmin.php)), aunque tenga habilidades `*`.
+- **Login en dos pasos:** contraseña → token de **desafío** (5 min, habilidad `platform:challenge`, uno por admin) → `setup` (secreto nuevo + QR SVG) y `confirm` la primera vez, `verify` las siguientes (código TOTP o código de recuperación) → token de **sesión** (8 h, habilidad `platform`). El desafío se borra al usarse.
+- **2FA:** TOTP RFC 6238 (`pragmarx/google2fa`, ±1 paso), secreto cifrado con `APP_KEY`, sin reutilizar códigos (`two_factor_last_step`, fila bloqueada al verificar). 8 códigos de recuperación de un solo uso, guardados como SHA-256 cifrado.
+- **Throttle:** login 5/min por email+IP y 20/min por IP; `confirm`/`verify` 5/min por admin+IP. Mensaje genérico y mismo tiempo con email inexistente.
+- **Auditoría** ([PlatformAuditLogger](backend/app/Application/Platform/Services/PlatformAuditLogger.php)): `login`, `login_failed`, `two_factor_enabled`, `two_factor_failed`, `recovery_code_used`, `logout`, y desde consola `admin_created`, `password_reset`, `two_factor_reset`.
+- **Alta solo por consola:** `php artisan platform:admin <email> [--name=] [--reset-2fa]` (pide la contraseña oculta dos veces; resetear revoca sesiones). Seed de desarrollo: `admin@plataforma.test` / `password`, sin 2FA (el primer ingreso lo configura).
+- **Frontend:** cookies httpOnly `platform_token` y `platform_challenge` (path `/platform`, `SameSite=Strict`); los códigos de recuperación se muestran en `/platform/recovery-codes` desde una cookie de 10 min limitada a esa ruta, que se borra al confirmar "Ya los guardé" (una Server Action que escribe cookies hace que Next vuelva a renderizar la página actual, y la del 2FA ya no tendría desafío).
+
 ---
 
 ## Tests
@@ -167,11 +181,14 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 | Feature | [PasswordChangeTest](backend/tests/Feature/Api/PasswordChangeTest.php) | 3 |
 | Feature | [StorefrontControllerTest](backend/tests/Feature/Api/Storefront/StorefrontControllerTest.php) | 9 |
 | Feature | [RevalidationTest](backend/tests/Feature/Storefront/RevalidationTest.php) | 7 |
+| Feature | [PlatformAuthTest](backend/tests/Feature/Api/Platform/PlatformAuthTest.php) | 15 |
+| Feature | [PlatformAdminCommandTest](backend/tests/Feature/Console/PlatformAdminCommandTest.php) | 5 |
 | — | `ExampleTest` (Unit + Feature, del skeleton) | 2 |
-| **Backend total** | | **88** |
-| Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts) | 38 |
+| **Backend total** | | **108** |
+| Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts), [seo.test.ts](frontend/tests/seo.test.ts), [server-api.test.ts](frontend/tests/server-api.test.ts) | 51 |
 | e2e | [admin.e2e.mjs](frontend/e2e/admin.e2e.mjs) (Playwright, navegador real) | 20 pasos |
 | a11y | [a11y.e2e.mjs](frontend/e2e/a11y.e2e.mjs) (axe-core, WCAG 2.2 AA, corre en `bin/e2e.sh` después del e2e) | 27 pasos |
+| Super panel | [platform.e2e.mjs](frontend/e2e/platform.e2e.mjs) (login, 2FA con TOTP calculado en Node, recuperación, separación de sesiones, axe) | 9 pasos |
 
 Salvaguarda: [tests/TestCase.php](backend/tests/TestCase.php) aborta si la base no termina en `_test`, y [phpunit.xml](backend/phpunit.xml) fuerza `DB_*` en `<env>` y `<server>`.
 
@@ -346,7 +363,9 @@ Nota operativa: si el frontend de desarrollo está apagado, el servicio `queue` 
 
 ### P2 — SaaS y producto
 En este orden (ver [Visión de producto](#visión-de-producto-saas)):
-1. [ ] **Super panel, base:** `platform_admins` con guard propio, login aparte con 2FA, listado de tiendas, alta manual (tienda + dueño), suspender/reactivar, borrar, auditoría. Primero porque sirve para operar todo lo demás y no depende de pagos.
+1. **Super panel, base** (primero porque sirve para operar todo lo demás y no depende de pagos), en dos entregas:
+   - [x] **1a. Acceso:** `platform_admins`, login aparte en `/platform` con 2FA obligatoria (TOTP + códigos de recuperación), alta por consola, auditoría y panel base
+   - [ ] **1b. Gestión de tiendas:** listado, alta manual (tienda + dueño), suspender/reactivar (con revalidación ISR), borrar (soft delete), auditoría de cada acción; reservar el slug `platform`
 2. [ ] **Planes y límites:** `plans` + `subscriptions`, límites aplicados en las Actions, plan y uso visibles en el panel. Las tiendas existentes quedan en Gratis.
 3. [ ] **Email transaccional:** recuperación de contraseña, verificación de email e invitaciones (requiere configurar mail).
 4. [ ] **Registro público en 3 pasos** con Turnstile y plan Gratis.
@@ -371,3 +390,4 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
 | 2026-10-23 | Módulos Stores + Products (6 entregables iniciales), luego verificación en Docker, storefront API, revalidación ISR, CRUD de categorías, uploads a R2, configuración de tienda, frontend storefront, auth + panel admin, gestión de usuarios. Revisión del HANDOFF contra el código y reorganización de este archivo. Revisión de `.gitignore` por seguridad y `git init` local (sin commit). |
 | 2026-10-24 | P0: variables R2 en `.env.example`, e2e aislado con base `catalogo_e2e` (20/20 OK, base de desarrollo intacta), CI de GitHub Actions escrito, bug del panel con respuestas 2xx sin JSON corregido. Identidad de git, primer commit y push a GitHub privado; el primer CI detectó que los tests llamaban al frontend real (corregido) y quedó en verde. **P0 completo.** |
 | 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. P1: auditoría WCAG 2.2 AA con axe integrada al e2e (rama `P1_auditoria_WCAG`): primera corrida con violaciones de contraste, label y skip link; corregidas → a11y 27/27, e2e 20/20, Vitest 45/45, build OK. P1: decisión registrada: ni shadcn/ui ni TanStack Query por ahora (motivos y disparadores en Decisiones). P1: prueba contra R2 real (rama `P1_probar_contra_R2_real`): credenciales, URL pública r2.dev, CORS, subida de imagen de producto y logo desde el panel y visualización en la tienda vía `next/image`, todo OK; objetos y productos de prueba borrados. `IMAGE_HOSTS` en `frontend/.env.local`, e2e aislado de R2, login del e2e de a11y tolerante al throttle (fallaba en corridas rápidas); e2e 47/47 OK. Visión de producto SaaS registrada (registro en 3 pasos con Turnstile, planes en ARS, Mercado Pago, super panel con acceso aparte) y P2 reordenado; el deploy pasa al final. Plan anual con 40 % de descuento decidido, con precios por plan. |
+| 2026-10-26 | P2.1a: acceso al super panel (rama `P2_alta_tiendas_y_panel_super_admin`): tabla `platform_admins` y `platform_audit_logs`, login en dos pasos con token de desafío, 2FA TOTP obligatoria con QR y 8 códigos de recuperación, throttle propio, comando `platform:admin`, páginas `/platform/*` con cookies propias y cliente HTTP común (`lib/server-api.ts`). Arreglos: reintento del login en a11y.e2e (el aviso viejo confundía la espera) y botón de cerrar sesión tapado por el indicador de Next en dev. Pest 108/108, PHPStan OK, Vitest 51/51, build OK, e2e 20 + 27 + 9 OK. |
