@@ -2,9 +2,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { PageHeader } from '@/components/admin/ui'
+import { ChangePlanForm } from '@/components/platform/ChangePlanForm'
 import { StoreActions } from '@/components/platform/StoreActions'
 import { StoreStatusBadge } from '@/components/platform/StoreStatusBadge'
 import { storefrontUrl } from '@/lib/admin/api'
+import { getPlans } from '@/lib/api'
 import { platformRequest } from '@/lib/platform/api'
 import type { PlatformStore } from '@/lib/platform/types'
 
@@ -23,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function StorePage({ params }: Props) {
-  const store = await getStore((await params).id)
+  const [store, plans] = await Promise.all([getStore((await params).id), getPlans()])
 
   if (!store) notFound()
 
@@ -48,6 +50,12 @@ export default async function StorePage({ params }: Props) {
                 </a>
               ) : store.slug}
             </dd>
+            <dt className="text-zinc-500">Plan</dt>
+            <dd>
+              {store.plan.name}
+              {store.plan.billing_cycle && ` · ${store.plan.billing_cycle === 'annual' ? 'anual' : 'mensual'}`}
+              {store.subscription_status !== 'active' && ` · ${store.subscription_status === 'past_due' ? 'pago vencido' : 'cancelada'}`}
+            </dd>
             <dt className="text-zinc-500">Dueño</dt>
             <dd>{store.owners.length ? store.owners.map((owner) => `${owner.name} (${owner.email})`).join(', ') : '—'}</dd>
             <dt className="text-zinc-500">Productos</dt>
@@ -66,6 +74,7 @@ export default async function StorePage({ params }: Props) {
         </section>
 
         <div className="flex flex-col gap-4">
+          {store.status !== 'deleted' && <ChangePlanForm store={store} plans={plans} />}
           <StoreActions store={store} />
         </div>
       </div>

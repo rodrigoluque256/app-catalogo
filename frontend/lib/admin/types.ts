@@ -1,7 +1,7 @@
 // Respuestas de /api/v1/admin y /api/v1/auth (ver backend: ProductResource, CategoryResource, StoreResource).
-import type { Category, Paginated, Store } from '@/lib/types'
+import type { Category, Paginated, Plan, Store } from '@/lib/types'
 
-export type { Category, Paginated, Store }
+export type { Category, Paginated, Plan, Store }
 
 export type ProductStatus = 'draft' | 'active' | 'archived'
 
@@ -49,6 +49,7 @@ export type Session = {
   store: Store
   roles: string[]
   permissions: string[]
+  plan: Plan
 }
 
 export type PresignedUpload = {
@@ -79,3 +80,9 @@ export type AdminUser = {
 export type CredentialResult =
   | { ok: true; temporaryPassword: string; email: string }
   | { ok: false; message: string; errors: FieldErrors }
+
+export type StorePlan = {
+  plan: Plan
+  subscription: { status: 'active' | 'past_due' | 'canceled'; billing_cycle: 'monthly' | 'annual' | null; current_period_end: string | null }
+  usage: { products: number; users: number }
+}

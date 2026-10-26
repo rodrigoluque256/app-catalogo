@@ -20,7 +20,7 @@ export default async function UsersPage() {
   return (
     <>
       <PageHeader title="Usuarios" />
-      <UsersManager users={result.data} />
+      <UsersManager users={result.data} maxUsers={session.plan.limits.users} planName={session.plan.name} />
     </>
   )
 }

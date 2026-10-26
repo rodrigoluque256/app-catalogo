@@ -8,6 +8,7 @@ use App\UI\Http\Controllers\Api\V1\Admin\ProductController;
 use App\UI\Http\Controllers\Api\V1\Admin\StoreSettingsController;
 use App\UI\Http\Controllers\Api\V1\Admin\UploadController;
 use App\UI\Http\Controllers\Api\V1\Admin\UserController;
+use App\UI\Http\Controllers\Api\V1\PlanController;
 use App\UI\Http\Controllers\Api\V1\Platform\AuthController as PlatformAuthController;
 use App\UI\Http\Controllers\Api\V1\Platform\StoreController as PlatformStoreController;
 use App\UI\Http\Controllers\Api\V1\Storefront\StorefrontController;
@@ -37,10 +38,14 @@ Route::prefix('v1/admin')
         });
 
         Route::middleware('can:store.manage')->group(function (): void {
+            Route::get('plan', [PlanController::class, 'current']);
             Route::get('store', [StoreSettingsController::class, 'show']);
             Route::patch('store', [StoreSettingsController::class, 'update']);
         });
     });
+
+// Público: precios y límites de los planes (landing, registro, "Mi plan").
+Route::get('v1/plans', [PlanController::class, 'index'])->middleware('throttle:60,1');
 
 Route::prefix('v1/storefront')
     ->middleware('tenant.header')
@@ -75,4 +80,5 @@ Route::prefix('v1/platform')
     ->group(function (): void {
         Route::apiResource('stores', PlatformStoreController::class);
         Route::post('stores/{store}/restore', [PlatformStoreController::class, 'restore']);
+        Route::patch('stores/{store}/plan', [PlatformStoreController::class, 'changePlan']);
     });

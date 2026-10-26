@@ -7,6 +7,7 @@ use App\Application\Product\DTOs\CreateProductData;
 use App\Application\Product\DTOs\ProductVariantData;
 use App\Application\Product\Services\ProductSlugGenerator;
 use App\Application\Product\Services\SkuUniquenessGuard;
+use App\Domain\Billing\Contracts\PlanLimitGuard;
 use App\Domain\Product\Enums\ProductStatus;
 use App\Domain\Product\Events\ProductCreated;
 use App\Domain\Product\Exceptions\CategoryNotFoundException;
@@ -33,6 +34,7 @@ beforeEach(function (): void {
         new SkuUniquenessGuard($this->products),
         $db,
         $this->events,
+        Mockery::mock(PlanLimitGuard::class)->shouldIgnoreMissing(),
     );
 });
 

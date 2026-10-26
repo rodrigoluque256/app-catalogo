@@ -15,17 +15,17 @@
 | Control de versiones | GitHub privado [`rodrigoluque256/app-catalogo`](https://github.com/rodrigoluque256/app-catalogo) (rama `main`, SSH). Identidad local del repo: Rodrigo Luque &lt;rodrigoluque256@gmail.com&gt; |
 | CI | GitHub Actions en verde (backend + frontend) desde el commit `6b7aae2` |
 
-**Última verificación (2026-10-26, P2.1b):**
+**Última verificación (2026-10-26, P2.2):**
 
 | Chequeo | Resultado |
 |---|---|
 | `migrate:fresh --seed` | OK |
-| Pest (backend) | 117/117 (552 assertions) |
+| Pest (backend) | 129/129 (595 assertions) |
 | PHPStan nivel 8 | sin errores |
-| Vitest (frontend) | 54/54 |
-| e2e de navegador del panel (Playwright, 20 pasos) | OK |
-| Auditoría WCAG 2.2 AA con axe (tienda escritorio/móvil + panel, 27 pasos) | OK, 0 violaciones |
-| e2e del super panel: login + 2FA + recuperación + gestión de tiendas, con axe (14 pasos) | OK |
+| Vitest (frontend) | 57/57 |
+| e2e de navegador del panel (Playwright, 21 pasos) | OK |
+| Auditoría WCAG 2.2 AA con axe (tienda escritorio/móvil + panel, 28 pasos) | OK, 0 violaciones |
+| e2e del super panel: login + 2FA + recuperación + gestión de tiendas + cambio de plan, con axe (15 pasos) | OK |
 | Prueba real en dev: crear → suspender (404) → reactivar (200) → borrar (404) con la cola y el ISR de verdad | OK |
 | Build de producción de Next + ISR (MISS → HIT) + revalidación real | OK |
 
@@ -48,7 +48,8 @@ Leyenda: `[x]` hecho · `[ ]` pendiente · `[~]` parcial
 | Storefront público | `GET /api/v1/storefront/{store, categories, products, products/{slug}}` (header `X-Store-Slug`) | público | 9 |
 | Revalidación ISR | listener en cola → `POST` al frontend | — | 7 |
 | Super panel: acceso | `POST /api/v1/platform/auth/login`, `POST /platform/auth/two-factor/{setup,confirm,verify}` (token de desafío), `GET /platform/auth/me`, `POST /platform/auth/logout` | `platform.admin` | 15 + 5 (comando) |
-| Super panel: tiendas | `GET/POST /api/v1/platform/stores`, `GET/PATCH/DELETE /platform/stores/{id}`, `POST /platform/stores/{id}/restore` | `platform.admin` | 9 |
+| Super panel: tiendas | `GET/POST /api/v1/platform/stores`, `GET/PATCH/DELETE /platform/stores/{id}`, `POST /platform/stores/{id}/restore`, `PATCH /platform/stores/{id}/plan` | `platform.admin` | 9 |
+| Planes | `GET /api/v1/plans` (**público**, throttle 60/min), `GET /api/v1/admin/plan` (plan, suscripción y uso); `auth/me` incluye `plan` | público / `store.manage` | 12 |
 
 Rutas: [backend/routes/api.php](backend/routes/api.php). Middleware del grupo admin: `auth:sanctum`, `tenant.user`, `password.changed`. Super panel: `auth:sanctum`, `platform.admin`, `abilities:platform` (o `abilities:platform:challenge` en el 2FA).
 
@@ -59,7 +60,7 @@ Roles (globales, asignados por tienda): **owner** = todos los permisos · **edit
 | Área | Rutas | Notas |
 |---|---|---|
 | Storefront | `/s/[store]` (inicio con destacados), `/c/[slug]`, `/p/[slug]`, `/buscar` | Se reescribe desde `{slug}.dominio` vía [proxy.ts](frontend/proxy.ts). ISR con tags; `/buscar` sin caché. Tema por tienda con contraste automático. Botón de WhatsApp (`wa.me`) con mensaje precargado desde el producto/variante. |
-| Panel admin | `/admin/login`, `/admin`, `/admin/products[/new\|/{id}]`, `/admin/categories[/new\|/{id}]`, `/admin/settings`, `/admin/users`, `/admin/account` | Sesión con token Sanctum guardado del lado servidor ([lib/admin/session.ts](frontend/lib/admin/session.ts)). Primer ingreso forzado a cambiar contraseña. |
+| Panel admin | `/admin/login`, `/admin`, `/admin/products[/new\|/{id}]`, `/admin/categories[/new\|/{id}]`, `/admin/settings`, `/admin/plan`, `/admin/users`, `/admin/account` | Sesión con token Sanctum guardado del lado servidor ([lib/admin/session.ts](frontend/lib/admin/session.ts)). Primer ingreso forzado a cambiar contraseña. |
 | Revalidación | `POST /api/revalidate` | Valida `x-revalidate-secret` y llama `revalidateTag` por cada tag. |
 | Super panel | `/platform/login`, `/platform/two-factor`, `/platform/recovery-codes`, `/platform` (contadores), `/platform/stores[/new\|/{id}]` | Cookies propias limitadas a `/platform` ([lib/platform/session.ts](frontend/lib/platform/session.ts)). Listado con búsqueda y filtro por estado, alta con subdominio sugerido ([lib/slug.ts](frontend/lib/slug.ts)) y contraseña temporal del dueño, detalle con suspender/reactivar, borrar (escribiendo el subdominio) y restaurar. Cliente HTTP común de ambos paneles: [lib/server-api.ts](frontend/lib/server-api.ts). |
 
@@ -122,6 +123,8 @@ Nota: existe una carpeta vacía `app/Domain/Category/Events` (sobrante; `Categor
 | [190444](backend/database/migrations/2026_10_23_190444_create_personal_access_tokens_table.php) | Sanctum | tokens de API (polimórficos: `User` y `PlatformAdmin`) |
 | [2026_10_26_000001](backend/database/migrations/2026_10_26_000001_create_platform_admins_table.php) | `platform_admins` | super admins, tabla aparte de `users`; secreto TOTP y códigos de recuperación cifrados |
 | [2026_10_26_000002](backend/database/migrations/2026_10_26_000002_create_platform_audit_logs_table.php) | `platform_audit_logs` | auditoría del super panel; `store_id` sin FK para sobrevivir al borrado |
+| [2026_10_26_000003](backend/database/migrations/2026_10_26_000003_create_plans_table.php) | `plans` | **inserta los 5 planes** (datos de referencia: llegan a producción con `migrate`); precios en centavos ARS, `max_products` null = sin límite |
+| [2026_10_26_000004](backend/database/migrations/2026_10_26_000004_create_subscriptions_table.php) | `subscriptions` | una por tienda (`store_id` único); **backfill: las tiendas existentes quedan en Gratis**; `mercadopago_preapproval_id` reservado para P2.6 |
 
 Garantías: IDs UUID v7 · unicidades con índices parciales `WHERE deleted_at IS NULL` · **FKs compuestas `(x_id, store_id)`** (la base impide referenciar filas de otra tienda) · requiere PostgreSQL ≥ 15 por `ON DELETE SET NULL (columna)`.
 
@@ -174,6 +177,16 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 - **ISR:** [StoreAvailabilityChanged](backend/app/Domain/Store/Events/StoreAvailabilityChanged.php) implementa `RevalidatesRegardlessOfStatus` (trae el slug): `RevalidateStorefront` revalida `store:{slug}` aunque la tienda ya no esté activa. Como el layout del storefront depende de ese tag, toda la tienda pasa a 404 (o vuelve) en el próximo pedido. Los demás eventos siguen ignorando tiendas inactivas. Ojo: los eventos que revalidan se registran en una lista explícita en [DomainServiceProvider](backend/app/Infrastructure/Providers/DomainServiceProvider.php).
 - **Auditoría:** `store_created` (con email del dueño), `store_suspended`, `store_reactivated`, `store_deleted`, `store_restored`, con `store_id` y `{slug}`.
 
+### Planes y límites
+- **Límites** (confirmados 2026-10-26): Gratis 25 productos / 3 fotos / 1 usuario · Basic 250 / 5 / 2 · Intermediate 500 / 10 / 3 · Advanced 1.000 / 15 / 5 · Unlimited sin límite / 20 / 20. Sin prueba gratuita (el Gratis cumple ese papel). Topes técnicos que siguen: 20 fotos y 100 variantes por producto.
+- **Dónde se aplican** ([PlanLimits](backend/app/Application/Billing/Services/PlanLimits.php), detrás de la interfaz `PlanLimitGuard`): `CreateProductAction` (productos no borrados + fotos), `UpdateProductAction` (fotos, solo si vienen `images`), `CreateUserAction` (usuarios; también el dueño creado desde el super panel). Error: 422 con mensaje para subir de plan (`errors.plan` o `errors.images`).
+- **Bajar de plan no borra nada:** solo se frena lo que se agrega. Las fotos se comparan contra las que el producto ya tiene (`new <= límite` o `new <= actuales`).
+- **Fallback:** una tienda sin suscripción se trata como **Gratis** (falla cerrado).
+- **Altas:** `Subscriptions::startFree()` en el alta desde el super panel (y en el registro, P2.5). El cambio de plan es **manual desde el super panel** (`ChangeStorePlanAction`, auditado como `plan_changed` con `from`/`to`/`billing_cycle`) hasta Mercado Pago (P2.6). `billing_cycle` es obligatorio en planes pagos y null en Gratis.
+- **Tienda demo:** el seeder la crea en **Intermediate** (3 usuarios: el e2e crea y borra una editora). En la base de desarrollo existente se cambió a mano.
+- **Tests:** `StoreFactory` crea las tiendas en **Unlimited** por defecto para que los tests de funcionalidades no dependan de límites; `onPlan('free')` para probarlos ([PlansTest](backend/tests/Feature/Api/Billing/PlansTest.php)).
+- **Frontend:** [PlanCards](frontend/components/PlanCards.tsx) (toggle mensual/anual, reutilizable en landing y registro), "Mi plan" (`/admin/plan`: plan, barras de uso, tarjetas), tarjeta de plan en el dashboard, `ProductForm` oculta la subida al llegar al límite de fotos y `UsersManager` reemplaza el alta por un aviso al llegar al límite de usuarios. Super panel: columna Plan y formulario de cambio de plan.
+
 ---
 
 ## Tests
@@ -193,12 +206,13 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 | Feature | [PlatformAuthTest](backend/tests/Feature/Api/Platform/PlatformAuthTest.php) | 15 |
 | Feature | [PlatformAdminCommandTest](backend/tests/Feature/Console/PlatformAdminCommandTest.php) | 5 |
 | Feature | [StoreManagementTest](backend/tests/Feature/Api/Platform/StoreManagementTest.php) | 9 |
+| Feature | [PlansTest](backend/tests/Feature/Api/Billing/PlansTest.php) | 12 |
 | — | `ExampleTest` (Unit + Feature, del skeleton) | 2 |
-| **Backend total** | | **117** |
-| Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts), [seo.test.ts](frontend/tests/seo.test.ts), [server-api.test.ts](frontend/tests/server-api.test.ts), [slug.test.ts](frontend/tests/slug.test.ts) | 54 |
-| e2e | [admin.e2e.mjs](frontend/e2e/admin.e2e.mjs) (Playwright, navegador real) | 20 pasos |
-| a11y | [a11y.e2e.mjs](frontend/e2e/a11y.e2e.mjs) (axe-core, WCAG 2.2 AA, corre en `bin/e2e.sh` después del e2e) | 27 pasos |
-| Super panel | [platform.e2e.mjs](frontend/e2e/platform.e2e.mjs) (login, 2FA con TOTP calculado en Node, recuperación, separación de sesiones; tiendas: alta, subdominio reservado/repetido, login del dueño, suspender/reactivar con 404/200 real, borrar y restaurar; axe) | 14 pasos |
+| **Backend total** | | **129** |
+| Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts), [seo.test.ts](frontend/tests/seo.test.ts), [server-api.test.ts](frontend/tests/server-api.test.ts), [slug.test.ts](frontend/tests/slug.test.ts), [plans.test.ts](frontend/tests/plans.test.ts) | 57 |
+| e2e | [admin.e2e.mjs](frontend/e2e/admin.e2e.mjs) (Playwright, navegador real) | 21 pasos |
+| a11y | [a11y.e2e.mjs](frontend/e2e/a11y.e2e.mjs) (axe-core, WCAG 2.2 AA, corre en `bin/e2e.sh` después del e2e) | 28 pasos |
+| Super panel | [platform.e2e.mjs](frontend/e2e/platform.e2e.mjs) (login, 2FA con TOTP calculado en Node, recuperación, separación de sesiones; tiendas: alta, subdominio reservado/repetido, login del dueño, suspender/reactivar con 404/200 real, borrar y restaurar, cambio de plan; axe) | 15 pasos |
 
 Salvaguarda: [tests/TestCase.php](backend/tests/TestCase.php) aborta si la base no termina en `_test`, y [phpunit.xml](backend/phpunit.xml) fuerza `DB_*` en `<env>` y `<server>`.
 
@@ -364,7 +378,7 @@ Basada en la estructura de vercatalogo.com, pero **solo con lo que el producto h
 - **Funciones:** listar tiendas (estado, plan, vencimiento, uso, dueño); crear tienda a mano (dueño con contraseña temporal); suspender/reactivar (revalidando el ISR para que deje de verse al instante); borrar (soft delete y purga diferida de datos y objetos de R2); ver estado de pago. Futuro: entrar como la tienda para soporte.
 
 ### Decisiones pendientes
-- Límites además de productos, a confirmar en P2.2. Propuesta: fotos por producto, usuarios por tienda y dominio propio desde Advanced cuando exista. Prueba gratuita sí/no.
+- Dominio propio como función de plan (propuesta: desde Advanced) cuando exista `custom_domain`.
 - **Actualización de precios en ARS** por inflación: revisión periódica (ej. trimestral) o referencia al dólar oficial con redondeo; aviso previo a los suscriptores antes de un aumento.
 - **Contenido legal** de Términos y condiciones y Política de privacidad (lo valida el usuario o un profesional).
 - Falta de pago: suspender o pasar a Gratis; cuántos días de gracia.
@@ -431,7 +445,7 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
    - [x] **1a. Acceso:** `platform_admins`, login aparte en `/platform` con 2FA obligatoria (TOTP + códigos de recuperación), alta por consola, auditoría y panel base
    - [x] **1b. Gestión de tiendas:** listado con búsqueda y filtros, alta manual (tienda + dueño con contraseña temporal), suspender/reactivar (con revalidación ISR), borrar (soft delete, confirmando el subdominio) y restaurar, auditoría de cada acción, slugs reservados
    - [ ] Pendiente derivado: purga definitiva de tiendas borradas (datos + objetos en R2) según la retención que se decida; ver Decisiones pendientes
-2. [ ] **Planes y límites:** `plans` + `subscriptions`, API pública `GET /api/v1/plans`, límites aplicados en las Actions, "Mi plan" (plan y uso) en el panel de la tienda, plan en el super panel. Las tiendas existentes quedan en Gratis.
+2. [x] **Planes y límites:** `plans` + `subscriptions`, API pública `GET /api/v1/plans`, límites aplicados en las Actions, "Mi plan" (plan y uso) en el panel de la tienda, plan y cambio manual en el super panel. Las tiendas existentes quedan en Gratis.
 3. [ ] **Email transaccional:** recuperación de contraseña, verificación de email e invitaciones (requiere configurar mail).
 4. [ ] **Landing page + páginas legales** (ver [Landing page](#landing-page-dominio-raíz)): hero, cómo funciona, funcionalidades actuales, planes desde la API, FAQ, términos y privacidad, ilustraciones unDraw y capturas de la demo. Antes del registro porque es la puerta de entrada y el registro enlaza a los términos; hasta que haya registro, el CTA lleva a contacto.
 5. [ ] **Registro público en 3 pasos** con Turnstile y plan Gratis.
@@ -459,3 +473,4 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
 | 2026-10-26 | P2.1a: acceso al super panel (rama `P2_alta_tiendas_y_panel_super_admin`): tabla `platform_admins` y `platform_audit_logs`, login en dos pasos con token de desafío, 2FA TOTP obligatoria con QR y 8 códigos de recuperación, throttle propio, comando `platform:admin`, páginas `/platform/*` con cookies propias y cliente HTTP común (`lib/server-api.ts`). Arreglos: reintento del login en a11y.e2e (el aviso viejo confundía la espera) y botón de cerrar sesión tapado por el indicador de Next en dev. Pest 108/108, PHPStan OK, Vitest 51/51, build OK, e2e 20 + 27 + 9 OK. |
 | 2026-10-26 | P2.1b: gestión de tiendas en el super panel: listado (búsqueda, filtros, dueños y conteos), alta de tienda + dueño con contraseña temporal, suspender/reactivar, borrar con confirmación del subdominio y restaurar (vuelve suspendida), slugs reservados, auditoría. Corregido: `RevalidateStorefront` ignoraba tiendas inactivas, así que suspender no habría apagado la tienda cacheada (nuevo `RevalidatesRegardlessOfStatus`). Pest 117/117, PHPStan OK, Vitest 54/54, build OK, e2e 20 + 27 + 14 OK, prueba real en dev 200 → 404 → 200 → 404. |
 | 2026-10-26 | Planificación (sin código): comparación de precios con vercatalogo convertida a ARS (oficial $1.550 y tarjeta ≈ $2.015 al 25/10/2026: los propios quedan −35 % / −50 %), dónde se ven los planes (API pública única), landing page del dominio raíz basada en vercatalogo pero solo con funciones reales y sin testimonios inventados, páginas legales, ilustraciones flat gratuitas (unDraw recomendada). P2 reordenado: la landing entra como punto 4, antes del registro. |
+| 2026-10-26 | P2.2: planes y límites. Límites confirmados (Unlimited con 20 usuarios), tablas `plans` (datos en la migración) y `subscriptions` (backfill a Gratis), `GET /api/v1/plans` público, límites de productos/fotos/usuarios en las Actions (bajar de plan conserva todo), "Mi plan" con uso y tarjetas mensual/anual, avisos de límite en producto y usuarios, plan y cambio manual auditado en el super panel. Demo en Intermediate. Pest 129/129, PHPStan OK, Vitest 57/57, build OK, e2e 21 + 28 + 15 OK. |

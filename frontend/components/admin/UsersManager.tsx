@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { createUserAction, deleteUserAction, resetUserPasswordAction, updateUserAction } from '@/app/admin/actions'
 import { firstError } from '@/lib/admin/forms'
@@ -11,7 +12,7 @@ const ROLE_LABELS: Record<UserRole, string> = { owner: 'Dueño', editor: 'Editor
 
 type Notice = { email: string; password: string }
 
-export function UsersManager({ users }: { users: AdminUser[] }) {
+export function UsersManager({ users, maxUsers, planName }: { users: AdminUser[]; maxUsers: number; planName: string }) {
   const [notice, setNotice] = useState<Notice | null>(null)
   const [editing, setEditing] = useState<number | null>(null)
   const [rowError, setRowError] = useState<string | null>(null)
@@ -42,7 +43,14 @@ export function UsersManager({ users }: { users: AdminUser[] }) {
       {notice && <TemporaryPassword email={notice.email} password={notice.password} onClose={() => setNotice(null)} />}
       {rowError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{rowError}</p>}
 
-      <NewUserForm onCreated={(result) => { setRowError(null); show(result) }} />
+      {users.length < maxUsers ? (
+        <NewUserForm onCreated={(result) => { setRowError(null); show(result) }} />
+      ) : (
+        <p className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-700">
+          Tu plan {planName} permite hasta {maxUsers} {maxUsers === 1 ? 'usuario' : 'usuarios'}.{' '}
+          <Link href="/admin/plan" className="underline">Ver planes</Link>
+        </p>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
         <table className="w-full min-w-[40rem] text-sm">

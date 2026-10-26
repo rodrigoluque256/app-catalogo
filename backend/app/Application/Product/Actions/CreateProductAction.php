@@ -7,6 +7,8 @@ namespace App\Application\Product\Actions;
 use App\Application\Product\DTOs\CreateProductData;
 use App\Application\Product\Services\ProductSlugGenerator;
 use App\Application\Product\Services\SkuUniquenessGuard;
+use App\Domain\Billing\Contracts\PlanLimitGuard;
+use App\Domain\Billing\Exceptions\PlanLimitExceededException;
 use App\Domain\Product\Events\ProductCreated;
 use App\Domain\Product\Exceptions\CategoryNotFoundException;
 use App\Domain\Product\Exceptions\DuplicateSkuException;
@@ -25,15 +27,20 @@ final readonly class CreateProductAction
         private SkuUniquenessGuard $skus,
         private ConnectionInterface $db,
         private Dispatcher $events,
+        private PlanLimitGuard $limits,
     ) {}
 
     /**
      * @throws CategoryNotFoundException
      * @throws DuplicateSkuException
+     * @throws PlanLimitExceededException
      */
     public function execute(CreateProductData $data): Product
     {
         $product = $this->db->transaction(function () use ($data): Product {
+            $this->limits->ensureCanAddProduct();
+            $this->limits->ensureImagesAllowed(count($data->images));
+
             if ($data->categoryId !== null && ! $this->categories->exists($data->categoryId)) {
                 throw CategoryNotFoundException::withId($data->categoryId);
             }

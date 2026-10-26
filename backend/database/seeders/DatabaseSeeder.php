@@ -24,7 +24,8 @@ class DatabaseSeeder extends Seeder
         // Super admin de desarrollo, sin 2FA: el primer ingreso a /platform obliga a configurarlo.
         PlatformAdmin::factory()->create(['name' => 'Admin Plataforma', 'email' => 'admin@plataforma.test']);
 
-        $store = Store::factory()->create([
+        // Intermediate: 3 usuarios, los que necesita el e2e para crear y borrar una editora.
+        $store = Store::factory()->onPlan('intermediate')->create([
             'name' => 'Tienda Demo',
             'slug' => 'demo',
             'whatsapp_number' => '+5491100000000',

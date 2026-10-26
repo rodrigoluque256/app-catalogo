@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\UI\Http\Controllers\Api\V1\Platform;
 
+use App\Application\Platform\Actions\Stores\ChangeStorePlanAction;
 use App\Application\Platform\Actions\Stores\ChangeStoreStatusAction;
 use App\Application\Platform\Actions\Stores\CreateStoreAction;
 use App\Application\Platform\Actions\Stores\DeleteStoreAction;
@@ -12,6 +13,7 @@ use App\Domain\Platform\Exceptions\StoreNotFoundException;
 use App\Domain\Platform\Models\PlatformAdmin;
 use App\Domain\Platform\Repositories\PlatformStoreRepositoryInterface;
 use App\Domain\Store\Models\Store;
+use App\UI\Http\Requests\Platform\ChangeStorePlanRequest;
 use App\UI\Http\Requests\Platform\CreateStoreRequest;
 use App\UI\Http\Requests\Platform\DeleteStoreRequest;
 use App\UI\Http\Requests\Platform\ListStoresRequest;
@@ -72,6 +74,13 @@ final class StoreController
     public function restore(Request $request, string $store, RestoreStoreAction $action): PlatformStoreResource
     {
         $action->execute($this->admin($request), $this->findOrFail($store));
+
+        return PlatformStoreResource::make($this->findOrFail($store));
+    }
+
+    public function changePlan(ChangeStorePlanRequest $request, string $store, ChangeStorePlanAction $action): PlatformStoreResource
+    {
+        $action->execute($this->admin($request), $this->findOrFail($store), $request->plan(), $request->cycle());
 
         return PlatformStoreResource::make($this->findOrFail($store));
     }

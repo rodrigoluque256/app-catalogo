@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { PageHeader } from '@/components/admin/ui'
 import { ProductForm } from '@/components/admin/ProductForm'
-import { adminRequest } from '@/lib/admin/api'
+import { adminRequest, requireSession } from '@/lib/admin/api'
 import { productToForm } from '@/lib/admin/forms'
 import type { AdminProduct, Category } from '@/lib/admin/types'
 
@@ -10,7 +10,8 @@ export const metadata: Metadata = { title: 'Editar producto' }
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [product, categories] = await Promise.all([
+  const [session, product, categories] = await Promise.all([
+    requireSession(),
     adminRequest<AdminProduct>(`admin/products/${encodeURIComponent(id)}`),
     adminRequest<Category[]>('admin/categories'),
   ])
@@ -23,7 +24,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   return (
     <>
       <PageHeader title={product.data.name} />
-      <ProductForm productId={product.data.id} initial={productToForm(product.data)} categories={categories.ok ? categories.data : []} />
+      <ProductForm productId={product.data.id} initial={productToForm(product.data)} categories={categories.ok ? categories.data : []} maxImages={session.plan.limits.images_per_product} planName={session.plan.name} />
     </>
   )
 }

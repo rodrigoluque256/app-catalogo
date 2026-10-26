@@ -60,3 +60,12 @@ export type Paginated<T> = {
   data: T[]
   meta: { current_page: number; last_page: number; per_page: number; total: number }
 }
+
+/** Plan público (GET /api/v1/plans). Precios en centavos ARS; `products` null = sin límite. */
+export type Plan = {
+  code: string
+  name: string
+  monthly_price: number
+  annual_price: number
+  limits: { products: number | null; images_per_product: number; users: number }
+}

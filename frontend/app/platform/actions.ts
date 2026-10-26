@@ -124,3 +124,12 @@ export async function restoreStoreAction(id: string): Promise<ActionResult> {
   revalidatePath('/platform', 'layout')
   return { ok: true }
 }
+
+export async function changeStorePlanAction(id: string, plan: string, billingCycle: 'monthly' | 'annual' | null): Promise<ActionResult> {
+  const result = await platformRequest(`stores/${id}/plan`, { method: 'PATCH', body: { plan, billing_cycle: billingCycle } })
+
+  if (!result.ok) return failure(result)
+
+  revalidatePath('/platform', 'layout')
+  return { ok: true }
+}

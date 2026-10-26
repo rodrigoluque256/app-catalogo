@@ -190,6 +190,19 @@ await step('el dueño entra al panel de su tienda con la temporal y debe cambiar
   await owner.context().close()
 })
 
+await step('cambiar el plan de la tienda (manual, antes de Mercado Pago)', async () => {
+  await page.goto(`${base}/platform/stores?search=${storeSlug}`)
+  await page.getByRole('cell', { name: 'Gratis' }).waitFor()
+  await page.getByRole('link', { name: storeName }).click()
+  await page.waitForURL(/\/platform\/stores\/[0-9a-f-]{36}$/)
+  await page.getByRole('combobox', { name: 'Plan', exact: true }).selectOption('basic')
+  await page.getByLabel('Ciclo de cobro').selectOption('annual')
+  await page.getByRole('button', { name: 'Cambiar plan' }).click()
+  await page.getByText('Plan actualizado.').waitFor()
+  await page.getByText('Basic · anual').waitFor()
+  await axe()
+})
+
 await step('suspender: la tienda deja de verse; reactivar: vuelve', async () => {
   await page.goto(`${base}/platform/stores?search=${storeSlug}`)
   await page.getByRole('link', { name: storeName }).click()

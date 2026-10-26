@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { PageHeader } from '@/components/admin/ui'
 import { adminRequest, can, requireSession, storefrontUrl } from '@/lib/admin/api'
 import type { AdminProduct, Category, Paginated } from '@/lib/admin/types'
+import { limitLabel } from '@/lib/plans'
 
 async function productCount(status: string): Promise<number> {
   const result = await adminRequest<Paginated<AdminProduct>>(`admin/products?per_page=1&status=${status}`, { envelope: true })
@@ -51,6 +52,13 @@ export default async function Dashboard() {
             </div>
           ))}
         </div>
+      )}
+
+      {can(session, 'store.manage') && (
+        <p className="mb-8 max-w-xl rounded-lg border border-zinc-200 bg-white p-4 text-sm">
+          Plan <strong>{session.plan.name}</strong> · {limitLabel(session.plan.limits.products, 'producto', 'productos').toLowerCase()} ·{' '}
+          <Link href="/admin/plan" className="underline">Ver mi plan</Link>
+        </p>
       )}
 
       {pending.length > 0 && (

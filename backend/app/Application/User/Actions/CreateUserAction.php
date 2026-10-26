@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\User\Actions;
 
+use App\Domain\Billing\Contracts\PlanLimitGuard;
 use App\Domain\Store\Repositories\StoreUserRepositoryInterface;
 use App\Models\User;
 use Illuminate\Contracts\Hashing\Hasher;
@@ -15,6 +16,7 @@ final readonly class CreateUserAction
     public function __construct(
         private StoreUserRepositoryInterface $users,
         private Hasher $hasher,
+        private PlanLimitGuard $limits,
     ) {}
 
     /**
@@ -24,6 +26,8 @@ final readonly class CreateUserAction
      */
     public function execute(string $name, string $email, string $role): array
     {
+        $this->limits->ensureCanAddUser();
+
         $temporary = Str::password(14, symbols: false);
 
         $user = DB::transaction(function () use ($name, $email, $role, $temporary): User {

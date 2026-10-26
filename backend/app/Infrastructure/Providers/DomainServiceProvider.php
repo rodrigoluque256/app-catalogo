@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Providers;
 
+use App\Application\Billing\Services\PlanLimits;
 use App\Application\Storefront\Listeners\RevalidateStorefront;
+use App\Domain\Billing\Contracts\PlanLimitGuard;
 use App\Domain\Platform\Repositories\PlatformStoreRepositoryInterface;
 use App\Domain\Product\Events\CategoriesChanged;
 use App\Domain\Product\Events\ProductCreated;
@@ -44,6 +46,7 @@ final class DomainServiceProvider extends ServiceProvider
         ProductRepositoryInterface::class => EloquentProductRepository::class,
         CategoryRepositoryInterface::class => EloquentCategoryRepository::class,
         UploadUrlSigner::class => R2UploadUrlSigner::class,
+        PlanLimitGuard::class => PlanLimits::class,
         UploadedObjectInspector::class => R2UploadedObjectInspector::class,
     ];
 

@@ -136,6 +136,14 @@ await step('configuración inválida muestra el error del campo', async () => {
   await page.getByRole('alert').first().waitFor()
 })
 
+await step('mi plan muestra el plan, el uso y los planes', async () => {
+  await page.getByRole('link', { name: 'Mi plan' }).click()
+  await page.getByRole('heading', { name: /^Plan Intermediate/ }).waitFor()
+  await page.getByRole('progressbar', { name: 'Productos' }).waitFor()
+  await page.getByRole('radio', { name: /Anual/ }).click()
+  await page.getByText('por año', { exact: false }).first().waitFor()
+})
+
 // ---- gestión de usuarios -------------------------------------------------------------------------
 const newEmail = `e2e-${run}@demo.test`
 const strongPassword = `Clave${run}9876`

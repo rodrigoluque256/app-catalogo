@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Platform\Actions\Stores;
 
+use App\Application\Billing\Services\Subscriptions;
 use App\Application\Platform\Services\PlatformAuditLogger;
 use App\Application\User\Actions\CreateUserAction;
 use App\Domain\Platform\Models\PlatformAdmin;
@@ -19,6 +20,7 @@ final readonly class CreateStoreAction
         private TenantContext $tenant,
         private CreateUserAction $createUser,
         private PlatformAuditLogger $audit,
+        private Subscriptions $subscriptions,
     ) {}
 
     /**
@@ -31,6 +33,7 @@ final readonly class CreateStoreAction
     {
         $result = DB::transaction(function () use ($admin, $name, $slug, $ownerName, $ownerEmail): array {
             $store = $this->stores->create($name, $slug);
+            $this->subscriptions->startFree($store);
 
             // El alta del usuario usa el tenant y el team de Spatie del request: acá se fijan a la tienda nueva.
             $owner = $this->tenant->runAs($store, function () use ($store, $ownerName, $ownerEmail): array {

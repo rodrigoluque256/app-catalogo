@@ -29,6 +29,8 @@ export type PlatformStore = {
   name: string
   slug: string
   status: StoreListStatus
+  plan: { code: string; name: string; billing_cycle: 'monthly' | 'annual' | null }
+  subscription_status: 'active' | 'past_due' | 'canceled'
   owners: { name: string; email: string }[]
   products_count: number
   users_count: number

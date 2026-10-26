@@ -6,10 +6,12 @@ namespace App\UI\Http\Controllers\Api\V1\Admin;
 
 use App\Application\Auth\Actions\ChangePasswordAction;
 use App\Application\Auth\Actions\LoginAction;
+use App\Application\Billing\Services\PlanLimits;
 use App\Domain\Shared\Tenancy\TenantContext;
 use App\Models\User;
 use App\UI\Http\Requests\Auth\ChangePasswordRequest;
 use App\UI\Http\Requests\Auth\LoginRequest;
+use App\UI\Http\Resources\PlanResource;
 use App\UI\Http\Resources\StoreResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,7 +36,7 @@ final class AuthController
     /**
      * Usuario, su tienda y lo que puede hacer (el panel oculta secciones según `permissions`).
      */
-    public function me(Request $request, TenantContext $tenant): JsonResponse
+    public function me(Request $request, TenantContext $tenant, PlanLimits $limits): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -44,6 +46,8 @@ final class AuthController
             'store' => StoreResource::make($tenant->store())->resolve($request),
             'roles' => $user->getRoleNames()->values(),
             'permissions' => $user->getAllPermissions()->pluck('name')->values(),
+            // Límites del plan: el panel deshabilita lo que no se puede agregar (la API igual lo valida).
+            'plan' => PlanResource::make($limits->planOf($tenant->store()))->resolve($request),
         ]]);
     }
 

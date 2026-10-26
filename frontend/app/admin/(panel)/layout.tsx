@@ -18,7 +18,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     ...(can(session, 'products.manage')
       ? [{ href: '/admin/products', label: 'Productos' }, { href: '/admin/categories', label: 'Categorías' }]
       : []),
-    ...(can(session, 'store.manage') ? [{ href: '/admin/settings', label: 'Mi tienda' }] : []),
+    ...(can(session, 'store.manage') ? [{ href: '/admin/settings', label: 'Mi tienda' }, { href: '/admin/plan', label: 'Mi plan' }] : []),
     ...(can(session, 'users.manage') ? [{ href: '/admin/users', label: 'Usuarios' }] : []),
     { href: '/admin/account', label: 'Mi cuenta' },
   ]

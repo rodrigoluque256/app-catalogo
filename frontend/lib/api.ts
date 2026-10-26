@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Category, Paginated, Product, Store } from './types'
+import type { Category, Paginated, Plan, Product, Store } from './types'
 import { tags } from './tags'
 
 const API_URL = process.env.API_URL ?? 'http://localhost:8000'
@@ -66,4 +66,17 @@ export async function getProduct(store: string, slug: string): Promise<Product |
   })
 
   return body?.data ?? null
+}
+
+/** Planes públicos (landing, registro, "Mi plan"). No dependen de una tienda: cache propio por hora. */
+export async function getPlans(): Promise<Plan[]> {
+  const response = await fetch(`${API_URL}/api/v1/plans`, {
+    headers: { Accept: 'application/json' },
+    cache: 'force-cache',
+    next: { tags: ['plans'], revalidate: FALLBACK_REVALIDATE_SECONDS },
+  })
+
+  if (!response.ok) return []
+
+  return ((await response.json()) as { data: Plan[] }).data
 }

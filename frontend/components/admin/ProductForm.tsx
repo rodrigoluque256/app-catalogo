@@ -8,9 +8,9 @@ import type { Category, FieldErrors, ProductStatus } from '@/lib/admin/types'
 import { ImageUploader } from './ImageUploader'
 import { buttonClass, Field, FormErrors, inputClass, secondaryButtonClass } from './ui'
 
-type Props = { productId: string | null; initial: FormState; categories: Category[] }
+type Props = { productId: string | null; initial: FormState; categories: Category[]; maxImages: number; planName: string }
 
-export function ProductForm({ productId, initial, categories }: Props) {
+export function ProductForm({ productId, initial, categories, maxImages, planName }: Props) {
   const [form, setForm] = useState<FormState>(initial)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [message, setMessage] = useState<string | null>(null)
@@ -163,17 +163,28 @@ export function ProductForm({ productId, initial, categories }: Props) {
           ))}
         </ul>
 
-        <ImageUploader
-          purpose="product_image"
-          multiple
-          label="Subir imágenes"
-          onUploaded={(uploaded) =>
-            setForm((current) => ({
-              ...current,
-              images: [...current.images, ...uploaded.map((image) => ({ key: newKey(), path: image.path, url: image.url, altText: '' }))],
-            }))
-          }
-        />
+        {form.images.length < maxImages ? (
+          <ImageUploader
+            purpose="product_image"
+            multiple
+            label="Subir imágenes"
+            onUploaded={(uploaded) =>
+              setForm((current) => ({
+                ...current,
+                // Si subió varias de golpe, se queda con las que entran en el plan.
+                images: [...current.images, ...uploaded.map((image) => ({ key: newKey(), path: image.path, url: image.url, altText: '' }))].slice(
+                  0,
+                  Math.max(maxImages, current.images.length),
+                ),
+              }))
+            }
+          />
+        ) : (
+          <p className="text-sm text-zinc-600">
+            Tu plan {planName} permite hasta {maxImages} {maxImages === 1 ? 'foto' : 'fotos'} por producto.{' '}
+            <Link href="/admin/plan" className="underline">Ver planes</Link>
+          </p>
+        )}
       </section>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-5" aria-labelledby="variantes">

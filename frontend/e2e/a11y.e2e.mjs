@@ -108,6 +108,7 @@ const panel = [
   ['categorías', '/admin/categories'],
   ['nueva categoría', '/admin/categories/new'],
   ['ajustes', '/admin/settings'],
+  ['mi plan', '/admin/plan'],
   ['usuarios', '/admin/users'],
   ['mi cuenta', '/admin/account'],
 ]

@@ -78,6 +78,7 @@ export default async function StoresPage({ searchParams }: Props) {
               <tr>
                 <th className="p-3 font-medium">Tienda</th>
                 <th className="p-3 font-medium">Estado</th>
+                <th className="p-3 font-medium">Plan</th>
                 <th className="p-3 font-medium">Dueño</th>
                 <th className="p-3 font-medium">Productos</th>
                 <th className="p-3 font-medium">Usuarios</th>
@@ -98,6 +99,10 @@ export default async function StoresPage({ searchParams }: Props) {
                     </p>
                   </td>
                   <td className="p-3"><StoreStatusBadge status={store.status} /></td>
+                  <td className="p-3 text-zinc-700">
+                    {store.plan.name}
+                    {store.plan.billing_cycle && <span className="text-xs text-zinc-500"> · {store.plan.billing_cycle === 'annual' ? 'anual' : 'mensual'}</span>}
+                  </td>
                   <td className="p-3 text-zinc-700">{store.owners.map((owner) => owner.email).join(', ') || '—'}</td>
                   <td className="p-3 text-zinc-700">{store.products_count}</td>
                   <td className="p-3 text-zinc-700">{store.users_count}</td>

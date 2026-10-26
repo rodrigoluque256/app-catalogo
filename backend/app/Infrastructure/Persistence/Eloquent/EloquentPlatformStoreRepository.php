@@ -75,7 +75,7 @@ final readonly class EloquentPlatformStoreRepository implements PlatformStoreRep
     private function query(): Builder
     {
         return Store::query()
-            ->with(['owners' => fn ($q) => $q->select(['users.id', 'users.store_id', 'users.name', 'users.email'])->orderBy('users.id')])
+            ->with(['owners' => fn ($q) => $q->select(['users.id', 'users.store_id', 'users.name', 'users.email'])->orderBy('users.id'), 'subscription.plan'])
             // Product tiene el StoreScope (falla cerrado sin tenant): acá se cuentan las de todas las tiendas a propósito.
             ->withCount(['products' => fn (Builder $q) => $q->withoutGlobalScope(StoreScope::class), 'users']);
     }

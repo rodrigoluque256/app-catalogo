@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Store\Models;
 
+use App\Domain\Billing\Models\Subscription;
 use App\Domain\Product\Models\Category;
 use App\Domain\Product\Models\Product;
 use App\Domain\Store\Enums\StoreStatus;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
@@ -91,6 +93,14 @@ class Store extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /**
+     * @return HasOne<Subscription, $this>
+     */
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class);
     }
 
     /**
