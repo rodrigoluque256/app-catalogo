@@ -24,14 +24,12 @@ final readonly class CreateStoreAction
     ) {}
 
     /**
-     * Tienda + dueño en una transacción. El dueño recibe una contraseña temporal (se devuelve UNA sola vez)
-     * y tiene que cambiarla al entrar, igual que un usuario creado desde el panel de la tienda.
-     *
-     * @return array{store: Store, temporary_password: string}
+     * Tienda + dueño en una transacción. El dueño recibe una invitación por email para elegir su contraseña,
+     * igual que un usuario creado desde el panel de la tienda.
      */
-    public function execute(PlatformAdmin $admin, string $name, string $slug, string $ownerName, string $ownerEmail): array
+    public function execute(PlatformAdmin $admin, string $name, string $slug, string $ownerName, string $ownerEmail): Store
     {
-        $result = DB::transaction(function () use ($admin, $name, $slug, $ownerName, $ownerEmail): array {
+        $store = DB::transaction(function () use ($admin, $name, $slug, $ownerName, $ownerEmail): Store {
             $store = $this->stores->create($name, $slug);
             $this->subscriptions->startFree($store);
 
@@ -48,9 +46,9 @@ final readonly class CreateStoreAction
 
             $this->audit->record('store_created', $admin, $store->id, ['slug' => $store->slug, 'owner_email' => $owner['user']->email]);
 
-            return ['store' => $store, 'temporary_password' => $owner['temporary_password']];
+            return $store;
         });
 
-        return ['store' => $this->stores->find($result['store']->id) ?? $result['store'], 'temporary_password' => $result['temporary_password']];
+        return $this->stores->find($store->id) ?? $store;
     }
 }

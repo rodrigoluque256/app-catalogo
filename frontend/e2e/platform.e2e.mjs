@@ -23,6 +23,8 @@ const step = async (name, fn) => {
 
 // Misma auditoría que a11y.e2e.mjs (WCAG 2.2 AA), sobre la página tal como está.
 const axe = async () => {
+  // Next puede transmitir los metadatos después del contenido: se espera el <title> antes de auditar.
+  await page.waitForFunction(() => document.title.trim() !== '', null, { timeout: 10_000 }).catch(() => {})
   const { violations } = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .exclude('nextjs-portal')
@@ -61,7 +63,7 @@ const run = Date.now().toString(36)
 const storeName = `Tienda E2E ${run}`
 const storeSlug = `tienda-e2e-${run}`
 const ownerEmail = `dueno-${run}@e2e.test`
-let temporaryPassword = ''
+const mailpit = process.env.MAILPIT_URL ?? 'http://mailpit:8025'
 let storeUrl = ''
 page.on('dialog', (dialog) => dialog.accept())
 
@@ -160,8 +162,8 @@ await step('crear tienda: subdominio sugerido y contraseña temporal del dueño'
   await page.getByLabel('Email').fill(ownerEmail)
   await axe()
   await page.getByRole('button', { name: 'Crear tienda' }).click()
-  await page.getByText(`Contraseña temporal para ${ownerEmail}`).waitFor()
-  temporaryPassword = (await page.locator('code').first().textContent()).trim()
+  await page.getByText(`Le enviamos la invitación al dueño (${ownerEmail})`).waitFor()
+  if ((await page.locator('code').count()) !== 0) throw new Error('se mostró una contraseña temporal')
   await axe()
   if ((await storefrontStatus()) !== 200) throw new Error('la tienda nueva no responde')
 })
@@ -179,14 +181,33 @@ await step('crear tienda: subdominio reservado o repetido da error', async () =>
   await page.getByText('Ese subdominio ya está en uso.').waitFor()
 })
 
-await step('el dueño entra al panel de su tienda con la temporal y debe cambiarla', async () => {
+await step('reenviar la invitación y el dueño la acepta: entra a su tienda', async () => {
+  await page.goto(`${base}/platform/stores?search=${storeSlug}`)
+  await page.getByRole('link', { name: storeName }).click()
+  await page.getByText('invitación pendiente', { exact: false }).waitFor()
+  await page.getByRole('button', { name: 'Reenviar invitación' }).click()
+
+  // Se toma el último email: el reenvío invalida el link anterior.
+  let link = null
+  for (let attempt = 0; attempt < 30 && !link; attempt++) {
+    const search = await (await fetch(`${mailpit}/api/v1/search?query=${encodeURIComponent(`to:"${ownerEmail}"`)}`)).json()
+    if ((search.messages ?? []).length >= 2) {
+      const { Text: text } = await (await fetch(`${mailpit}/api/v1/message/${search.messages[0].ID}`)).json()
+      link = text.match(/https?:\/\/[^\s\])]+\/admin\/invitacion\?[^\s\])]+/)?.[0] ?? null
+    }
+    if (!link) await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+  if (!link) throw new Error('no llegó la invitación reenviada')
+
   const owner = await (await browser.newContext()).newPage()
-  await owner.goto(`${base}/admin/login`)
-  await owner.getByLabel('Email').fill(ownerEmail)
-  await owner.getByLabel('Contraseña').fill(temporaryPassword)
-  await owner.getByRole('button', { name: 'Ingresar' }).click()
-  await owner.waitForURL('**/admin/account')
-  await owner.getByRole('heading', { name: 'Elegí tu contraseña' }).waitFor()
+  const url = new URL(link)
+  await owner.goto(`${base}${url.pathname}${url.search}`)
+  await owner.getByRole('heading', { name: `Bienvenido a ${storeName}` }).waitFor()
+  await owner.getByLabel('Contraseña nueva').fill(`Duena${run}1234`)
+  await owner.getByLabel('Repetí la contraseña').fill(`Duena${run}1234`)
+  await owner.getByRole('button', { name: 'Guardar y entrar' }).click()
+  await owner.waitForURL(`${base}/admin`)
+  await owner.getByRole('link', { name: 'Mi plan' }).waitFor()
   await owner.context().close()
 })
 

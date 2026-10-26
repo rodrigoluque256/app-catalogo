@@ -27,7 +27,11 @@ final class PlatformStoreResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'status' => $this->trashed() ? 'deleted' : $this->status->value,
-            'owners' => $this->owners->map(fn (User $owner): array => ['name' => $owner->name, 'email' => $owner->email])->values(),
+            'owners' => $this->owners->map(fn (User $owner): array => [
+                'name' => $owner->name,
+                'email' => $owner->email,
+                'invitation_pending' => $owner->invitationPending(),
+            ])->values(),
             // Sin suscripción cuenta como Gratis (ver PlanLimits::planOf).
             'plan' => [
                 'code' => $this->subscription->plan->code ?? Plan::FREE,

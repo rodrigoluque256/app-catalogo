@@ -36,4 +36,15 @@ final class CreateUserRequest extends FormRequest
             'role' => ['required', Rule::in(self::ROLES)],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'email.unique' => 'Ya existe un usuario con ese email.',
+            'email.email' => 'El email no es válido.',
+        ];
+    }
 }

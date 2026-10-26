@@ -31,11 +31,9 @@ export type PlatformStore = {
   status: StoreListStatus
   plan: { code: string; name: string; billing_cycle: 'monthly' | 'annual' | null }
   subscription_status: 'active' | 'past_due' | 'canceled'
-  owners: { name: string; email: string }[]
+  owners: { name: string; email: string; invitation_pending: boolean }[]
   products_count: number
   users_count: number
   created_at: string | null
   deleted_at: string | null
 }
-
-export type CreatedStore = PlatformStore & { temporary_password: string }

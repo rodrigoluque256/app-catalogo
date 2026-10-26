@@ -24,6 +24,11 @@ return [
         'revalidate_secret' => env('STOREFRONT_REVALIDATE_SECRET'),
     ],
 
+    // Panel de administración (Next.js): base de los links de los emails.
+    'panel' => [
+        'url' => rtrim((string) env('PANEL_URL', 'http://localhost:3000'), '/'),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

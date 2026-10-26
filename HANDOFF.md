@@ -15,16 +15,16 @@
 | Control de versiones | GitHub privado [`rodrigoluque256/app-catalogo`](https://github.com/rodrigoluque256/app-catalogo) (rama `main`, SSH). Identidad local del repo: Rodrigo Luque &lt;rodrigoluque256@gmail.com&gt; |
 | CI | GitHub Actions en verde (backend + frontend) desde el commit `6b7aae2` |
 
-**Última verificación (2026-10-26, P2.2):**
+**Última verificación (2026-10-26, P2.3):**
 
 | Chequeo | Resultado |
 |---|---|
 | `migrate:fresh --seed` | OK |
-| Pest (backend) | 129/129 (595 assertions) |
+| Pest (backend) | 143/143 (669 assertions) |
 | PHPStan nivel 8 | sin errores |
 | Vitest (frontend) | 57/57 |
-| e2e de navegador del panel (Playwright, 21 pasos) | OK |
-| Auditoría WCAG 2.2 AA con axe (tienda escritorio/móvil + panel, 28 pasos) | OK, 0 violaciones |
+| e2e de navegador del panel (Playwright, 21 pasos; invitación, olvidé mi contraseña y link del dueño leídos desde Mailpit) | OK |
+| Auditoría WCAG 2.2 AA con axe (tienda escritorio/móvil + panel, 31 pasos) | OK, 0 violaciones |
 | e2e del super panel: login + 2FA + recuperación + gestión de tiendas + cambio de plan, con axe (15 pasos) | OK |
 | Prueba real en dev: crear → suspender (404) → reactivar (200) → borrar (404) con la cola y el ISR de verdad | OK |
 | Build de producción de Next + ISR (MISS → HIT) + revalidación real | OK |
@@ -50,6 +50,7 @@ Leyenda: `[x]` hecho · `[ ]` pendiente · `[~]` parcial
 | Super panel: acceso | `POST /api/v1/platform/auth/login`, `POST /platform/auth/two-factor/{setup,confirm,verify}` (token de desafío), `GET /platform/auth/me`, `POST /platform/auth/logout` | `platform.admin` | 15 + 5 (comando) |
 | Super panel: tiendas | `GET/POST /api/v1/platform/stores`, `GET/PATCH/DELETE /platform/stores/{id}`, `POST /platform/stores/{id}/restore`, `PATCH /platform/stores/{id}/plan` | `platform.admin` | 9 |
 | Planes | `GET /api/v1/plans` (**público**, throttle 60/min), `GET /api/v1/admin/plan` (plan, suscripción y uso); `auth/me` incluye `plan` | público / `store.manage` | 12 |
+| Accesos por email | `POST /api/v1/auth/forgot-password`, `POST /auth/reset-password`, `GET /auth/invitation`, `POST /auth/invitation/accept`; `POST /admin/users/{id}/reset-password` reenvía invitación o manda link; `POST /platform/stores/{id}/resend-invitation` | público / `users.manage` / `platform.admin` | 12 + ajustes |
 
 Rutas: [backend/routes/api.php](backend/routes/api.php). Middleware del grupo admin: `auth:sanctum`, `tenant.user`, `password.changed`. Super panel: `auth:sanctum`, `platform.admin`, `abilities:platform` (o `abilities:platform:challenge` en el 2FA).
 
@@ -60,7 +61,7 @@ Roles (globales, asignados por tienda): **owner** = todos los permisos · **edit
 | Área | Rutas | Notas |
 |---|---|---|
 | Storefront | `/s/[store]` (inicio con destacados), `/c/[slug]`, `/p/[slug]`, `/buscar` | Se reescribe desde `{slug}.dominio` vía [proxy.ts](frontend/proxy.ts). ISR con tags; `/buscar` sin caché. Tema por tienda con contraste automático. Botón de WhatsApp (`wa.me`) con mensaje precargado desde el producto/variante. |
-| Panel admin | `/admin/login`, `/admin`, `/admin/products[/new\|/{id}]`, `/admin/categories[/new\|/{id}]`, `/admin/settings`, `/admin/plan`, `/admin/users`, `/admin/account` | Sesión con token Sanctum guardado del lado servidor ([lib/admin/session.ts](frontend/lib/admin/session.ts)). Primer ingreso forzado a cambiar contraseña. |
+| Panel admin | `/admin/login`, `/admin/recuperar`, `/admin/restablecer`, `/admin/invitacion`, `/admin`, `/admin/products[/new\|/{id}]`, `/admin/categories[/new\|/{id}]`, `/admin/settings`, `/admin/plan`, `/admin/users`, `/admin/account` | Sesión con token Sanctum guardado del lado servidor ([lib/admin/session.ts](frontend/lib/admin/session.ts)). Primer ingreso forzado a cambiar contraseña. |
 | Revalidación | `POST /api/revalidate` | Valida `x-revalidate-secret` y llama `revalidateTag` por cada tag. |
 | Super panel | `/platform/login`, `/platform/two-factor`, `/platform/recovery-codes`, `/platform` (contadores), `/platform/stores[/new\|/{id}]` | Cookies propias limitadas a `/platform` ([lib/platform/session.ts](frontend/lib/platform/session.ts)). Listado con búsqueda y filtro por estado, alta con subdominio sugerido ([lib/slug.ts](frontend/lib/slug.ts)) y contraseña temporal del dueño, detalle con suspender/reactivar, borrar (escribiendo el subdominio) y restaurar. Cliente HTTP común de ambos paneles: [lib/server-api.ts](frontend/lib/server-api.ts). |
 
@@ -124,6 +125,7 @@ Nota: existe una carpeta vacía `app/Domain/Category/Events` (sobrante; `Categor
 | [2026_10_26_000001](backend/database/migrations/2026_10_26_000001_create_platform_admins_table.php) | `platform_admins` | super admins, tabla aparte de `users`; secreto TOTP y códigos de recuperación cifrados |
 | [2026_10_26_000002](backend/database/migrations/2026_10_26_000002_create_platform_audit_logs_table.php) | `platform_audit_logs` | auditoría del super panel; `store_id` sin FK para sobrevivir al borrado |
 | [2026_10_26_000003](backend/database/migrations/2026_10_26_000003_create_plans_table.php) | `plans` | **inserta los 5 planes** (datos de referencia: llegan a producción con `migrate`); precios en centavos ARS, `max_products` null = sin límite |
+| [2026_10_26_000005](backend/database/migrations/2026_10_26_000005_add_invitation_accepted_at_to_users_table.php) | `users` | `invitation_accepted_at` (null = invitación pendiente; los existentes quedan aceptados) |
 | [2026_10_26_000004](backend/database/migrations/2026_10_26_000004_create_subscriptions_table.php) | `subscriptions` | una por tienda (`store_id` único); **backfill: las tiendas existentes quedan en Gratis**; `mercadopago_preapproval_id` reservado para P2.6 |
 
 Garantías: IDs UUID v7 · unicidades con índices parciales `WHERE deleted_at IS NULL` · **FKs compuestas `(x_id, store_id)`** (la base impide referenciar filas de otra tienda) · requiere PostgreSQL ≥ 15 por `ON DELETE SET NULL (columna)`.
@@ -159,7 +161,7 @@ Fuera de un request (seeders, jobs, comandos): `app(TenantContext::class)->runAs
 Errores de dominio → 422 con el mismo formato que la validación de Laravel. Recurso inexistente o de otra tienda → 404. 5xx sin mensaje interno. Ver [bootstrap/app.php](backend/bootstrap/app.php).
 
 ### Usuarios y contraseñas
-Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez) → `must_change_password`; el middleware `password.changed` bloquea la API admin con 403 `password_change_required` hasta cambiarla. No se puede eliminar ni cambiar el rol de uno mismo; la tienda conserva siempre al menos un dueño. Email único en toda la plataforma. Borrar o resetear revoca tokens. Contraseñas: ≥ 10 caracteres con letras y números. Login: token de 12 h, mensaje genérico, throttle 5/min por email+IP.
+**Altas por invitación** (desde 2026-10-26, P2.3): el usuario creado por el dueño (o el dueño de una tienda creada desde el super panel) recibe un email con un link de 72 h para elegir su contraseña; hasta aceptar, su contraseña es aleatoria y no puede entrar (`invitation_accepted_at` null, "Invitación pendiente" en el panel). Ya no se muestran contraseñas temporales: `must_change_password` queda solo para usuarios viejos que tenían una. No se puede eliminar ni cambiar el rol de uno mismo; la tienda conserva siempre al menos un dueño. Email único en toda la plataforma. Borrar o enviar link de contraseña revoca tokens. Contraseñas: ≥ 10 caracteres con letras y números (mensajes en español en [PasswordMessages](backend/app/UI/Http/Requests/Auth/PasswordMessages.php)). Login: token de 12 h, mensaje genérico, throttle 5/min por email+IP.
 
 ### Super panel: acceso
 - **Identidad:** `PlatformAdmin` ([modelo](backend/app/Domain/Platform/Models/PlatformAdmin.php)), tabla `platform_admins`, sin tienda ni roles. Un token de plataforma en `/api/v1/admin/*` da 403 (`tenant.user` exige `User`); un token de tienda en `/api/v1/platform/*` da 403 ([EnsurePlatformAdmin](backend/app/UI/Http/Middleware/EnsurePlatformAdmin.php)), aunque tenga habilidades `*`.
@@ -187,6 +189,14 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 - **Tests:** `StoreFactory` crea las tiendas en **Unlimited** por defecto para que los tests de funcionalidades no dependan de límites; `onPlan('free')` para probarlos ([PlansTest](backend/tests/Feature/Api/Billing/PlansTest.php)).
 - **Frontend:** [PlanCards](frontend/components/PlanCards.tsx) (toggle mensual/anual, reutilizable en landing y registro), "Mi plan" (`/admin/plan`: plan, barras de uso, tarjetas), tarjeta de plan en el dashboard, `ProductForm` oculta la subida al llegar al límite de fotos y `UsersManager` reemplaza el alta por un aviso al llegar al límite de usuarios. Super panel: columna Plan y formulario de cambio de plan.
 
+### Email transaccional
+- **Qué se envía** (notificaciones en cola, en español, [app/Application/Auth/Notifications](backend/app/Application/Auth/Notifications)): `UserInvitation` (link 72 h a `/admin/invitacion`) y `ResetPasswordLink` (link 60 min a `/admin/restablecer`). Ambos links los arma [AccessLinks](backend/app/Application/Auth/Services/AccessLinks.php) con `PANEL_URL`, sobre la tabla `password_reset_tokens` con dos brokers (`invitations` 72 h, `users` 60 min): un token vigente por email, pedir uno nuevo invalida el anterior.
+- **Olvidé mi contraseña:** respuesta 202 idéntica exista o no el email; solo envía a usuarios de una tienda activa; 1 email por minuto por persona y throttle 3/min por email+IP. Restablecer cierra todas las sesiones; si era un invitado pendiente, cuenta como aceptar.
+- **Invitación:** `GET /auth/invitation` valida el link sin consumirlo (muestra la tienda); aceptar guarda la contraseña, marca `invitation_accepted_at` y `email_verified_at` y devuelve un token de sesión (entra directo). Tienda suspendida → link inválido. Desde el panel, "Reenviar invitación" / "Enviar link de contraseña" según el estado; el super panel reenvía la del dueño (que todavía no puede entrar).
+- **Plantillas:** textos de la plantilla de Laravel traducidos en [lang/es.json](backend/lang/es.json); el encabezado enlaza al panel ([resources/views/vendor/mail](backend/resources/views/vendor/mail), solo `message.blade.php`). `APP_NAME="Catálogo"` es el remitente y el nombre de la plantilla.
+- **Desarrollo y e2e:** servicio `mailpit` del compose (UI y API en http://localhost:8025, SMTP 1025). El e2e lee los emails por la API de Mailpit y sigue los links.
+- **Producción (Resend, decidido 2026-10-26):** gratis hasta 3.000/mes (100/día). Pasos del deploy: comprar el dominio, verificarlo en Resend agregando los registros DNS que indica (SPF, DKIM y DMARC), crear una API key y configurar `MAIL_HOST=smtp.resend.com`, `MAIL_PORT=465`, `MAIL_SCHEME=smtps`, `MAIL_USERNAME=resend`, `MAIL_PASSWORD=<API key>`, `MAIL_FROM_ADDRESS=no-reply@<dominio>` y `PANEL_URL=https://<dominio del panel>`. Sin paquetes extra (SMTP).
+
 ---
 
 ## Tests
@@ -207,11 +217,12 @@ Alta con contraseña temporal aleatoria (14 caracteres, se muestra una sola vez)
 | Feature | [PlatformAdminCommandTest](backend/tests/Feature/Console/PlatformAdminCommandTest.php) | 5 |
 | Feature | [StoreManagementTest](backend/tests/Feature/Api/Platform/StoreManagementTest.php) | 9 |
 | Feature | [PlansTest](backend/tests/Feature/Api/Billing/PlansTest.php) | 12 |
+| Feature | [AccessLinksTest](backend/tests/Feature/Api/AccessLinksTest.php) | 12 |
 | — | `ExampleTest` (Unit + Feature, del skeleton) | 2 |
-| **Backend total** | | **129** |
+| **Backend total** | | **143** |
 | Frontend | [lib.test.ts](frontend/tests/lib.test.ts), [admin-forms.test.ts](frontend/tests/admin-forms.test.ts), [skeletons.test.ts](frontend/tests/skeletons.test.ts), [seo.test.ts](frontend/tests/seo.test.ts), [server-api.test.ts](frontend/tests/server-api.test.ts), [slug.test.ts](frontend/tests/slug.test.ts), [plans.test.ts](frontend/tests/plans.test.ts) | 57 |
 | e2e | [admin.e2e.mjs](frontend/e2e/admin.e2e.mjs) (Playwright, navegador real) | 21 pasos |
-| a11y | [a11y.e2e.mjs](frontend/e2e/a11y.e2e.mjs) (axe-core, WCAG 2.2 AA, corre en `bin/e2e.sh` después del e2e) | 28 pasos |
+| a11y | [a11y.e2e.mjs](frontend/e2e/a11y.e2e.mjs) (axe-core, WCAG 2.2 AA, corre en `bin/e2e.sh` después del e2e) | 31 pasos |
 | Super panel | [platform.e2e.mjs](frontend/e2e/platform.e2e.mjs) (login, 2FA con TOTP calculado en Node, recuperación, separación de sesiones; tiendas: alta, subdominio reservado/repetido, login del dueño, suspender/reactivar con 404/200 real, borrar y restaurar, cambio de plan; axe) | 15 pasos |
 
 Salvaguarda: [tests/TestCase.php](backend/tests/TestCase.php) aborta si la base no termina en `_test`, y [phpunit.xml](backend/phpunit.xml) fuerza `DB_*` en `<env>` y `<server>`.
@@ -251,6 +262,8 @@ docker compose exec frontend npm run typecheck
 | `REVALIDATE_SECRET` | frontend | igual a `STOREFRONT_REVALIDATE_SECRET` | ✅ |
 | `IMAGE_HOSTS` | frontend | hosts de R2/CDN para `next/image` | ✅ (vacío) |
 | `DEV_ORIGINS` | frontend | solo desarrollo | ✅ |
+| `MAIL_*` | backend | email transaccional (dev: Mailpit; prod: Resend por SMTP) | ✅ |
+| `PANEL_URL` | backend | base de los links de los emails | ✅ |
 
 Importante: `php artisan serve` descarta las variables de entorno que también están en `.env`, por eso `backend/.env` apunta a Postgres explícitamente.
 
@@ -385,7 +398,6 @@ Basada en la estructura de vercatalogo.com, pero **solo con lo que el producto h
 - ¿Se publica la tienda antes de verificar el email?
 - Retención de datos de una tienda borrada.
 - Dominio del super panel: ruta en el dominio raíz o subdominio propio (`admin.dominio.com`).
-- Proveedor de email transaccional (prerrequisito de verificación, recuperación y avisos de cobro).
 - Facturación electrónica (AFIP/ARCA) de las suscripciones: fuera de alcance por ahora.
 
 ---
@@ -446,9 +458,9 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
    - [x] **1b. Gestión de tiendas:** listado con búsqueda y filtros, alta manual (tienda + dueño con contraseña temporal), suspender/reactivar (con revalidación ISR), borrar (soft delete, confirmando el subdominio) y restaurar, auditoría de cada acción, slugs reservados
    - [ ] Pendiente derivado: purga definitiva de tiendas borradas (datos + objetos en R2) según la retención que se decida; ver Decisiones pendientes
 2. [x] **Planes y límites:** `plans` + `subscriptions`, API pública `GET /api/v1/plans`, límites aplicados en las Actions, "Mi plan" (plan y uso) en el panel de la tienda, plan y cambio manual en el super panel. Las tiendas existentes quedan en Gratis.
-3. [ ] **Email transaccional:** recuperación de contraseña, verificación de email e invitaciones (requiere configurar mail).
+3. [x] **Email transaccional:** recuperación de contraseña e invitaciones por email (reemplazan a la contraseña temporal), Mailpit en dev/e2e, Resend para producción (se configura en el deploy). La verificación de email pasa al registro (punto 5).
 4. [ ] **Landing page + páginas legales** (ver [Landing page](#landing-page-dominio-raíz)): hero, cómo funciona, funcionalidades actuales, planes desde la API, FAQ, términos y privacidad, ilustraciones unDraw y capturas de la demo. Antes del registro porque es la puerta de entrada y el registro enlaza a los términos; hasta que haya registro, el CTA lleva a contacto.
-5. [ ] **Registro público en 3 pasos** con Turnstile y plan Gratis.
+5. [ ] **Registro público en 3 pasos** con Turnstile, plan Gratis y verificación de email (reutiliza las notificaciones y Mailpit de P2.3).
 6. [ ] **Mercado Pago:** checkout de planes pagos, webhook, cambio de plan, suspensión automática por falta de pago.
 7. Resto:
    - [ ] Sync de variantes que conserve IDs (prerequisito del carrito)
@@ -457,6 +469,7 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
    - [ ] Limpieza de objetos huérfanos en R2 (job o lifecycle rule)
    - [ ] 2FA y registro de auditoría para usuarios de tienda (para la plataforma va en el punto 1)
    - [ ] Borrar la carpeta vacía `app/Domain/Category/Events`
+   - [ ] Mensajes de validación genéricos en español (hoy la app no tiene traducciones: los formularios nuevos traen mensajes propios, pero los demás campos muestran el texto de Laravel en inglés)
 
 ### Futuro
 - [ ] E-commerce completo: carrito, checkout, órdenes, pagos, stock transaccional
@@ -474,3 +487,4 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
 | 2026-10-26 | P2.1b: gestión de tiendas en el super panel: listado (búsqueda, filtros, dueños y conteos), alta de tienda + dueño con contraseña temporal, suspender/reactivar, borrar con confirmación del subdominio y restaurar (vuelve suspendida), slugs reservados, auditoría. Corregido: `RevalidateStorefront` ignoraba tiendas inactivas, así que suspender no habría apagado la tienda cacheada (nuevo `RevalidatesRegardlessOfStatus`). Pest 117/117, PHPStan OK, Vitest 54/54, build OK, e2e 20 + 27 + 14 OK, prueba real en dev 200 → 404 → 200 → 404. |
 | 2026-10-26 | Planificación (sin código): comparación de precios con vercatalogo convertida a ARS (oficial $1.550 y tarjeta ≈ $2.015 al 25/10/2026: los propios quedan −35 % / −50 %), dónde se ven los planes (API pública única), landing page del dominio raíz basada en vercatalogo pero solo con funciones reales y sin testimonios inventados, páginas legales, ilustraciones flat gratuitas (unDraw recomendada). P2 reordenado: la landing entra como punto 4, antes del registro. |
 | 2026-10-26 | P2.2: planes y límites. Límites confirmados (Unlimited con 20 usuarios), tablas `plans` (datos en la migración) y `subscriptions` (backfill a Gratis), `GET /api/v1/plans` público, límites de productos/fotos/usuarios en las Actions (bajar de plan conserva todo), "Mi plan" con uso y tarjetas mensual/anual, avisos de límite en producto y usuarios, plan y cambio manual auditado en el super panel. Demo en Intermediate. Pest 129/129, PHPStan OK, Vitest 57/57, build OK, e2e 21 + 28 + 15 OK. |
+| 2026-10-26 | P2.3: email transaccional. Resend elegido para producción (se conecta en el deploy por SMTP); Mailpit en dev y e2e. Altas por invitación (link 72 h) en lugar de contraseña temporal, "olvidé mi contraseña" (link 60 min, respuesta genérica, cierra sesiones), reenvío de invitación desde el panel y desde el super panel, plantillas en español. Mensajes de contraseña y email duplicado en español. e2e reescrito para leer los emails desde Mailpit. Pest 143/143, PHPStan OK, Vitest 57/57, build OK, e2e 21 + 31 + 15 OK. |

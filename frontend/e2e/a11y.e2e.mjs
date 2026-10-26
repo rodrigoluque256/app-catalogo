@@ -71,6 +71,9 @@ await page.setViewportSize({ width: 1280, height: 900 })
 
 await step('tienda: saltar al contenido con el teclado', () => skipLink('/s/demo'))
 
+await step('panel: recuperar contraseña', () => audit('/admin/recuperar'))
+await step('panel: invitación inválida', () => audit('/admin/invitacion?token=x&email=nadie%40demo.test'))
+await step('panel: restablecer contraseña', () => audit('/admin/restablecer?token=x&email=nadie%40demo.test'))
 await step('panel: login', () => audit('/admin/login'))
 
 await step('panel: login con error', async () => {

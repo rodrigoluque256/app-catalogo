@@ -37,8 +37,9 @@ final readonly class EloquentStoreUserRepository implements StoreUserRepositoryI
             'name' => $name,
             'email' => $email,
             'password' => $hashedPassword,
-            'must_change_password' => true,
-            'email_verified_at' => now(),
+            // Invitado: entra cuando elige su contraseña desde el email (ver AccessLinks).
+            'must_change_password' => false,
+            'invitation_accepted_at' => null,
         ]);
         $user->saveQuietly();
 

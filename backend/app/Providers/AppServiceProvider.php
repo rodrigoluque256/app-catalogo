@@ -26,6 +26,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(5)
             ->by(strtolower((string) $request->input('email')).'|'.$request->ip()));
 
+        // "Olvidé mi contraseña": pocos pedidos por email+IP (cada uno manda un email).
+        RateLimiter::for('password-email', fn (Request $request): Limit => Limit::perMinute(3)
+            ->by('password-email|'.strtolower((string) $request->input('email')).'|'.$request->ip()));
+
+        // Links de invitación y reseteo: frena probar tokens a ciegas.
+        RateLimiter::for('access-links', fn (Request $request): Limit => Limit::perMinute(10)->by('access-links|'.$request->ip()));
+
         // Super panel: además del límite por email+IP, uno por IP para frenar el barrido de emails.
         RateLimiter::for('platform-login', fn (Request $request): array => [
             Limit::perMinute(5)->by('platform|'.strtolower((string) $request->input('email')).'|'.$request->ip()),

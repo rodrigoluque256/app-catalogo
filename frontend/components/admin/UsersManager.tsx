@@ -2,15 +2,14 @@
 
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
-import { createUserAction, deleteUserAction, resetUserPasswordAction, updateUserAction } from '@/app/admin/actions'
+import { createUserAction, deleteUserAction, sendUserAccessAction, updateUserAction } from '@/app/admin/actions'
 import { firstError } from '@/lib/admin/forms'
-import type { AdminUser, CredentialResult, FieldErrors, UserRole } from '@/lib/admin/types'
-import { TemporaryPassword } from './TemporaryPassword'
+import type { AccessResult, AdminUser, FieldErrors, UserRole } from '@/lib/admin/types'
 import { buttonClass, Field, FormErrors, inputClass, secondaryButtonClass } from './ui'
 
 const ROLE_LABELS: Record<UserRole, string> = { owner: 'Dueño', editor: 'Editor' }
 
-type Notice = { email: string; password: string }
+type Notice = { email: string; sent: 'invitation' | 'reset' }
 
 export function UsersManager({ users, maxUsers, planName }: { users: AdminUser[]; maxUsers: number; planName: string }) {
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -18,15 +17,19 @@ export function UsersManager({ users, maxUsers, planName }: { users: AdminUser[]
   const [rowError, setRowError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const show = (result: CredentialResult) => {
-    if (result.ok) setNotice({ email: result.email, password: result.temporaryPassword })
+  const show = (result: AccessResult) => {
+    if (result.ok) setNotice({ email: result.email, sent: result.sent })
     else setRowError(result.message)
   }
 
-  function reset(user: AdminUser) {
-    if (!window.confirm(`¿Resetear la contraseña de ${user.email}? Se cerrarán todas sus sesiones.`)) return
+  function sendAccess(user: AdminUser) {
+    const question = user.invitation_pending
+      ? `¿Reenviar la invitación a ${user.email}? El link anterior deja de funcionar.`
+      : `¿Enviar a ${user.email} un link para restablecer su contraseña? Se cerrarán todas sus sesiones.`
+    if (!window.confirm(question)) return
+    setNotice(null)
     setRowError(null)
-    startTransition(async () => show(await resetUserPasswordAction(user.id, user.email)))
+    startTransition(async () => show(await sendUserAccessAction(user.id, user.email)))
   }
 
   function remove(user: AdminUser) {
@@ -40,7 +43,13 @@ export function UsersManager({ users, maxUsers, planName }: { users: AdminUser[]
 
   return (
     <div className="flex flex-col gap-6">
-      {notice && <TemporaryPassword email={notice.email} password={notice.password} onClose={() => setNotice(null)} />}
+      {notice && (
+        <p role="status" className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          {notice.sent === 'invitation'
+            ? <>Le enviamos una invitación a <strong>{notice.email}</strong> para que elija su contraseña. El link vence en 72 horas.</>
+            : <>Le enviamos a <strong>{notice.email}</strong> un link para restablecer su contraseña. Sus sesiones se cerraron.</>}
+        </p>
+      )}
       {rowError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{rowError}</p>}
 
       {users.length < maxUsers ? (
@@ -74,7 +83,9 @@ export function UsersManager({ users, maxUsers, planName }: { users: AdminUser[]
                   </td>
                   <td className="p-3">{user.role ? ROLE_LABELS[user.role] : '—'}</td>
                   <td className="p-3">
-                    {user.must_change_password ? (
+                    {user.invitation_pending ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Invitación pendiente</span>
+                    ) : user.must_change_password ? (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Pendiente de cambiar clave</span>
                     ) : (
                       <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">Activo</span>
@@ -82,7 +93,9 @@ export function UsersManager({ users, maxUsers, planName }: { users: AdminUser[]
                   </td>
                   <td className="space-x-3 p-3 text-right">
                     <button type="button" className="underline" onClick={() => { setRowError(null); setEditing(user.id) }}>Editar</button>
-                    <button type="button" className="underline" disabled={pending} onClick={() => reset(user)}>Resetear clave</button>
+                    <button type="button" className="underline" disabled={pending} onClick={() => sendAccess(user)}>
+                      {user.invitation_pending ? 'Reenviar invitación' : 'Enviar link de contraseña'}
+                    </button>
                     {!user.is_current_user && (
                       <button type="button" className="text-red-600 underline" disabled={pending} onClick={() => remove(user)}>Eliminar</button>
                     )}
@@ -100,7 +113,7 @@ export function UsersManager({ users, maxUsers, planName }: { users: AdminUser[]
   )
 }
 
-function NewUserForm({ onCreated }: { onCreated: (result: CredentialResult) => void }) {
+function NewUserForm({ onCreated }: { onCreated: (result: AccessResult) => void }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<UserRole>('editor')
@@ -123,7 +136,8 @@ function NewUserForm({ onCreated }: { onCreated: (result: CredentialResult) => v
         onCreated(result)
       } else {
         setErrors(result.errors)
-        setMessage(result.message)
+        // Si el error es de un campo, ya se muestra junto a él: el resumen solo para los demás casos.
+        setMessage(Object.keys(result.errors).some((key) => ['name', 'email', 'role'].includes(key)) ? null : result.message)
       }
     })
   }
@@ -146,10 +160,10 @@ function NewUserForm({ onCreated }: { onCreated: (result: CredentialResult) => v
           </select>
         </Field>
         <div className="flex items-end">
-          <button type="submit" disabled={pending} className={buttonClass}>{pending ? 'Creando…' : 'Crear usuario'}</button>
+          <button type="submit" disabled={pending} className={buttonClass}>{pending ? 'Invitando…' : 'Enviar invitación'}</button>
         </div>
       </div>
-      <p className="mt-2 text-xs text-zinc-500">Se genera una contraseña temporal que verás una sola vez.</p>
+      <p className="mt-2 text-xs text-zinc-500">Le llega un email con un link para elegir su contraseña (vence en 72 horas).</p>
     </form>
   )
 }

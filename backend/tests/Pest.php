@@ -7,6 +7,7 @@ use App\Domain\Store\Contracts\UploadedObjectInspector;
 use App\Domain\Store\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -57,4 +58,21 @@ function withBearer(string $token, string $method, string $uri, array $data = []
     app('auth')->forgetGuards();
 
     return test()->withToken($token)->json($method, $uri, $data);
+}
+
+/**
+ * Token del link que se le mandó a $user (invitación o reseteo), con Notification::fake() activo.
+ *
+ * @param  class-string  $notification
+ */
+function sentLinkToken(User $user, string $notification): string
+{
+    $token = null;
+    Notification::assertSentTo($user, $notification, function (object $sent) use (&$token): bool {
+        $token = $sent->token;
+
+        return true;
+    });
+
+    return (string) $token;
 }

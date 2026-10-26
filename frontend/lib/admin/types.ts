@@ -72,13 +72,14 @@ export type AdminUser = {
   email: string
   role: UserRole | null
   must_change_password: boolean
+  invitation_pending: boolean
   is_current_user: boolean
   created_at: string | null
 }
 
-/** Altas y reseteos devuelven una contraseña temporal que se muestra una sola vez. */
-export type CredentialResult =
-  | { ok: true; temporaryPassword: string; email: string }
+/** Alta de usuario o envío de acceso: se avisa a quién le llegó el email (ya no hay contraseña temporal). */
+export type AccessResult =
+  | { ok: true; email: string; sent: 'invitation' | 'reset' }
   | { ok: false; message: string; errors: FieldErrors }
 
 export type StorePlan = {

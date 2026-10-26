@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation'
 import { PageHeader } from '@/components/admin/ui'
 import { ChangePlanForm } from '@/components/platform/ChangePlanForm'
 import { StoreActions } from '@/components/platform/StoreActions'
+import { resendOwnerInvitationAction } from '@/app/platform/actions'
+import { DeleteButton } from '@/components/admin/DeleteButton'
 import { StoreStatusBadge } from '@/components/platform/StoreStatusBadge'
 import { storefrontUrl } from '@/lib/admin/api'
 import { getPlans } from '@/lib/api'
@@ -57,7 +59,18 @@ export default async function StorePage({ params }: Props) {
               {store.subscription_status !== 'active' && ` · ${store.subscription_status === 'past_due' ? 'pago vencido' : 'cancelada'}`}
             </dd>
             <dt className="text-zinc-500">Dueño</dt>
-            <dd>{store.owners.length ? store.owners.map((owner) => `${owner.name} (${owner.email})`).join(', ') : '—'}</dd>
+            <dd>
+              {store.owners.length ? store.owners.map((owner) => `${owner.name} (${owner.email})${owner.invitation_pending ? ' · invitación pendiente' : ''}`).join(', ') : '—'}
+              {store.status !== 'deleted' && store.owners.some((owner) => owner.invitation_pending) && (
+                <div className="mt-1">
+                  <DeleteButton
+                    label="Reenviar invitación" pendingLabel="Enviando…" className="text-sm underline"
+                    confirmText="¿Reenviar la invitación al dueño? El link anterior deja de funcionar."
+                    action={resendOwnerInvitationAction.bind(null, store.id)}
+                  />
+                </div>
+              )}
+            </dd>
             <dt className="text-zinc-500">Productos</dt>
             <dd>{store.products_count}</dd>
             <dt className="text-zinc-500">Usuarios</dt>

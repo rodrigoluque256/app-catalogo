@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\UI\Http\Controllers\Api\V1\Admin\AuthController;
 use App\UI\Http\Controllers\Api\V1\Admin\CategoryController;
+use App\UI\Http\Controllers\Api\V1\Admin\PasswordController;
 use App\UI\Http\Controllers\Api\V1\Admin\ProductController;
 use App\UI\Http\Controllers\Api\V1\Admin\StoreSettingsController;
 use App\UI\Http\Controllers\Api\V1\Admin\UploadController;
@@ -16,6 +17,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/auth')->group(function (): void {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
+
+    // Accesos por email (públicos): olvidé mi contraseña e invitaciones.
+    Route::post('forgot-password', [PasswordController::class, 'forgot'])->middleware('throttle:password-email');
+    Route::middleware('throttle:access-links')->group(function (): void {
+        Route::post('reset-password', [PasswordController::class, 'reset']);
+        Route::get('invitation', [PasswordController::class, 'invitation']);
+        Route::post('invitation/accept', [PasswordController::class, 'accept']);
+    });
     Route::post('logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     Route::get('me', [AuthController::class, 'me'])->middleware(['auth:sanctum', 'tenant.user']);
     Route::post('password', [AuthController::class, 'changePassword'])->middleware(['auth:sanctum', 'tenant.user', 'throttle:10,1']);
@@ -81,4 +90,5 @@ Route::prefix('v1/platform')
         Route::apiResource('stores', PlatformStoreController::class);
         Route::post('stores/{store}/restore', [PlatformStoreController::class, 'restore']);
         Route::patch('stores/{store}/plan', [PlatformStoreController::class, 'changePlan']);
+        Route::post('stores/{store}/resend-invitation', [PlatformStoreController::class, 'resendInvitation']);
     });

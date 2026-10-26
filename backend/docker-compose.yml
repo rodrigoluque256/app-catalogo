@@ -19,6 +19,8 @@ services:
     depends_on:
       pgsql:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     command: php artisan serve --host=0.0.0.0 --port=8000
 
   # Worker de colas: procesa la revalidación ISR y cualquier otro listener en segundo plano.
@@ -40,6 +42,8 @@ services:
     depends_on:
       pgsql:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     command: php artisan queue:work --tries=5 --sleep=3 --max-time=3600
     restart: unless-stopped
 
@@ -91,9 +95,16 @@ services:
       R2_BUCKET: ""
       R2_ENDPOINT: ""
       R2_PUBLIC_URL: ""
+      # Emails a Mailpit: el e2e los lee por su API para seguir los links de invitación y de reseteo.
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      PANEL_URL: http://frontend-e2e:3000
     depends_on:
       pgsql:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     # Servidor embebido de PHP en vez de `artisan serve`: este último reemplaza con los valores de .env
     # las variables de entorno repetidas, y la API terminaría usando la base de desarrollo.
     # El router de Laravel busca index.php en el directorio actual, por eso se arranca desde public/.
@@ -136,6 +147,15 @@ services:
       sh -c 'mkdir -p /tmp/run && cd /tmp/run && npm init -y >/dev/null
       && npm i playwright@1.64.1 @axe-core/playwright@4.14.0 >/dev/null && cp /work/*.e2e.mjs .
       && { node admin.e2e.mjs; a=$$?; node a11y.e2e.mjs; b=$$?; node platform.e2e.mjs; c=$$?; exit $$((a | b | c)); }'
+
+  # Atrapa los emails de dev y e2e (no salen a internet). UI y API: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.29.0
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_MAX_MESSAGES: 500
 
   pgsql:
     image: postgres:16-alpine

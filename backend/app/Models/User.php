@@ -21,6 +21,8 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $email
  * @property string $password
  * @property bool $must_change_password
+ * @property Carbon|null $invitation_accepted_at
+ * @property Carbon|null $email_verified_at
  * @property Carbon|null $created_at
  */
 class User extends Authenticatable
@@ -44,6 +46,12 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    /** Invitado que todavía no eligió su contraseña (no puede entrar). */
+    public function invitationPending(): bool
+    {
+        return $this->invitation_accepted_at === null;
+    }
+
     /**
      * @return BelongsTo<Store, $this>
      */
@@ -61,6 +69,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'must_change_password' => 'boolean',
+            'invitation_accepted_at' => 'datetime',
         ];
     }
 }

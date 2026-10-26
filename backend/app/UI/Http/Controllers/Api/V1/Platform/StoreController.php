@@ -8,6 +8,7 @@ use App\Application\Platform\Actions\Stores\ChangeStorePlanAction;
 use App\Application\Platform\Actions\Stores\ChangeStoreStatusAction;
 use App\Application\Platform\Actions\Stores\CreateStoreAction;
 use App\Application\Platform\Actions\Stores\DeleteStoreAction;
+use App\Application\Platform\Actions\Stores\ResendOwnerInvitationAction;
 use App\Application\Platform\Actions\Stores\RestoreStoreAction;
 use App\Domain\Platform\Exceptions\StoreNotFoundException;
 use App\Domain\Platform\Models\PlatformAdmin;
@@ -42,7 +43,7 @@ final class StoreController
 
     public function store(CreateStoreRequest $request, CreateStoreAction $action): JsonResponse
     {
-        $result = $action->execute(
+        $created = $action->execute(
             $this->admin($request),
             $request->string('name')->trim()->toString(),
             $request->string('slug')->toString(),
@@ -50,11 +51,8 @@ final class StoreController
             $request->string('owner_email')->toString(),
         );
 
-        return response()->json(['data' => [
-            ...PlatformStoreResource::make($result['store'])->resolve($request),
-            // Se muestra una sola vez: no se puede volver a consultar.
-            'temporary_password' => $result['temporary_password'],
-        ]], Response::HTTP_CREATED);
+        // El dueño recibe la invitación por email (no hay contraseña temporal).
+        return PlatformStoreResource::make($created)->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
     public function update(UpdateStoreStatusRequest $request, string $store, ChangeStoreStatusAction $action): PlatformStoreResource
@@ -83,6 +81,11 @@ final class StoreController
         $action->execute($this->admin($request), $this->findOrFail($store), $request->plan(), $request->cycle());
 
         return PlatformStoreResource::make($this->findOrFail($store));
+    }
+
+    public function resendInvitation(Request $request, string $store, ResendOwnerInvitationAction $action): JsonResponse
+    {
+        return response()->json(['data' => ['emails' => $action->execute($this->admin($request), $this->findOrFail($store))]], Response::HTTP_ACCEPTED);
     }
 
     private function findOrFail(string $id): Store

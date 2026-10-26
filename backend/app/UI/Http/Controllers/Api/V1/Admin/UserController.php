@@ -7,7 +7,7 @@ namespace App\UI\Http\Controllers\Api\V1\Admin;
 use App\Application\User\Actions\CreateUserAction;
 use App\Application\User\Actions\DeleteUserAction;
 use App\Application\User\Actions\ListUsersAction;
-use App\Application\User\Actions\ResetUserPasswordAction;
+use App\Application\User\Actions\SendUserAccessAction;
 use App\Application\User\Actions\UpdateUserAction;
 use App\Models\User;
 use App\UI\Http\Requests\User\CreateUserRequest;
@@ -35,11 +35,7 @@ final class UserController
             $request->string('role')->toString(),
         );
 
-        return response()->json(['data' => [
-            ...$this->present($result['user'], $result['role'], $this->actorId($request)),
-            // Se muestra una sola vez: no se puede volver a consultar.
-            'temporary_password' => $result['temporary_password'],
-        ]], Response::HTTP_CREATED);
+        return response()->json(['data' => $this->present($result['user'], $result['role'], $this->actorId($request))], Response::HTTP_CREATED);
     }
 
     public function update(UpdateUserRequest $request, string $user, UpdateUserAction $action): JsonResponse
@@ -62,9 +58,10 @@ final class UserController
         return response()->noContent();
     }
 
-    public function resetPassword(string $user, ResetUserPasswordAction $action): JsonResponse
+    /** Reenvía la invitación pendiente o manda un link para restablecer la contraseña (y cierra sus sesiones). */
+    public function resetPassword(string $user, SendUserAccessAction $action): JsonResponse
     {
-        return response()->json(['data' => ['temporary_password' => $action->execute($user)]]);
+        return response()->json(['data' => ['sent' => $action->execute($user)]], Response::HTTP_ACCEPTED);
     }
 
     private function actorId(Request $request): int
@@ -86,6 +83,7 @@ final class UserController
             'email' => $user->email,
             'role' => $role,
             'must_change_password' => $user->must_change_password,
+            'invitation_pending' => $user->invitationPending(),
             'is_current_user' => $user->id === $actorId,
             'created_at' => $user->created_at?->toIso8601String(),
         ];

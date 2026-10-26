@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { createStoreAction, type CreateStoreResult } from '@/app/platform/actions'
-import { TemporaryPassword } from '@/components/admin/TemporaryPassword'
 import { buttonClass, Field, FormErrors, inputClass, secondaryButtonClass } from '@/components/admin/ui'
 import { firstError } from '@/lib/admin/forms'
 import type { FieldErrors } from '@/lib/admin/types'
@@ -50,7 +49,10 @@ export function CreateStoreForm({ storefrontTemplate }: { storefrontTemplate: st
         <p role="status" className="rounded-md bg-green-50 p-3 text-sm text-green-800">
           Tienda creada: <a href={url(created.slug)} target="_blank" rel="noreferrer" className="font-medium underline">{url(created.slug)}<span className="sr-only"> (se abre en otra pestaña)</span></a>
         </p>
-        <TemporaryPassword email={created.email} password={created.temporaryPassword} onClose={() => setCreated({ ...created, temporaryPassword: '' })} />
+        <p className="rounded-md border border-zinc-200 bg-white p-3 text-sm">
+          Le enviamos la invitación al dueño (<strong>{created.email}</strong>) para que elija su contraseña. El link vence en 72 horas;
+          si no le llega, reenviala desde el detalle de la tienda.
+        </p>
         <div className="flex gap-3">
           <Link href={`/platform/stores/${created.storeId}`} className={buttonClass}>Ver la tienda creada</Link>
           <Link href="/platform/stores" className={secondaryButtonClass}>Volver al listado</Link>
@@ -85,7 +87,7 @@ export function CreateStoreForm({ storefrontTemplate }: { storefrontTemplate: st
         <Field label="Nombre" htmlFor="owner_name" error={firstError(errors, 'owner_name')}>
           <input id="owner_name" className={inputClass} value={ownerName} maxLength={120} required onChange={(e) => setOwnerName(e.target.value)} />
         </Field>
-        <Field label="Email" htmlFor="owner_email" error={firstError(errors, 'owner_email')} hint="Va a entrar con una contraseña temporal y elegir una propia.">
+        <Field label="Email" htmlFor="owner_email" error={firstError(errors, 'owner_email')} hint="Le llega una invitación para elegir su contraseña.">
           <input id="owner_email" type="email" className={inputClass} value={ownerEmail} maxLength={255} required onChange={(e) => setOwnerEmail(e.target.value)} />
         </Field>
       </fieldset>

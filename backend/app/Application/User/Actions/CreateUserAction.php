@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Application\User\Actions;
 
+use App\Application\Auth\Services\AccessLinks;
 use App\Domain\Billing\Contracts\PlanLimitGuard;
+use App\Domain\Billing\Exceptions\PlanLimitExceededException;
 use App\Domain\Store\Repositories\StoreUserRepositoryInterface;
 use App\Models\User;
 use Illuminate\Contracts\Hashing\Hasher;
@@ -17,26 +19,30 @@ final readonly class CreateUserAction
         private StoreUserRepositoryInterface $users,
         private Hasher $hasher,
         private PlanLimitGuard $limits,
+        private AccessLinks $links,
     ) {}
 
     /**
-     * El alta genera una contraseña temporal que se devuelve UNA sola vez; la persona debe cambiarla al entrar.
+     * El alta es una invitación: la persona recibe un email con un link (72 h) para elegir su contraseña.
+     * Hasta entonces su contraseña es aleatoria y nadie la conoce, así que no puede entrar.
      *
-     * @return array{user: User, role: string, temporary_password: string}
+     * @return array{user: User, role: string}
+     *
+     * @throws PlanLimitExceededException
      */
     public function execute(string $name, string $email, string $role): array
     {
         $this->limits->ensureCanAddUser();
 
-        $temporary = Str::password(14, symbols: false);
-
-        $user = DB::transaction(function () use ($name, $email, $role, $temporary): User {
-            $user = $this->users->create($name, strtolower($email), $this->hasher->make($temporary));
+        $user = DB::transaction(function () use ($name, $email, $role): User {
+            $user = $this->users->create($name, strtolower($email), $this->hasher->make(Str::random(64)));
             $user->assignRole($role); // el team (tienda) ya lo fijó ResolveTenantFromUser
+
+            $this->links->sendInvitation($user); // en cola, después del commit
 
             return $user;
         });
 
-        return ['user' => $user, 'role' => $role, 'temporary_password' => $temporary];
+        return ['user' => $user, 'role' => $role];
     }
 }

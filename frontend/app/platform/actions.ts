@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { platformRequest } from '@/lib/platform/api'
 import { clearPlatformCookies, clearRecoveryCodes, setChallengeToken, setPlatformToken, setRecoveryCodes } from '@/lib/platform/session'
 import type { ActionResult, FieldErrors } from '@/lib/admin/types'
-import type { CreatedStore, LoginChallenge, PlatformToken } from '@/lib/platform/types'
+import type { LoginChallenge, PlatformStore, PlatformToken } from '@/lib/platform/types'
 
 export type PlatformLoginState = { error: string | null; email: string }
 
@@ -80,11 +80,11 @@ export async function platformLogoutAction(): Promise<void> {
 const failure = (result: { message: string; errors: FieldErrors }) => ({ ok: false as const, message: result.message, errors: result.errors })
 
 export type CreateStoreResult =
-  | { ok: true; storeId: string; slug: string; email: string; temporaryPassword: string }
+  | { ok: true; storeId: string; slug: string; email: string }
   | { ok: false; message: string; errors: FieldErrors }
 
 export async function createStoreAction(payload: { name: string; slug: string; owner_name: string; owner_email: string }): Promise<CreateStoreResult> {
-  const result = await platformRequest<CreatedStore>('stores', { method: 'POST', body: payload })
+  const result = await platformRequest<PlatformStore>('stores', { method: 'POST', body: payload })
 
   if (!result.ok) return failure(result)
 
@@ -94,7 +94,6 @@ export async function createStoreAction(payload: { name: string; slug: string; o
     storeId: result.data.id,
     slug: result.data.slug,
     email: result.data.owners[0]?.email ?? payload.owner_email,
-    temporaryPassword: result.data.temporary_password,
   }
 }
 
@@ -131,5 +130,14 @@ export async function changeStorePlanAction(id: string, plan: string, billingCyc
   if (!result.ok) return failure(result)
 
   revalidatePath('/platform', 'layout')
+  return { ok: true }
+}
+
+/** El dueño no puede pedirse la invitación a sí mismo (todavía no entra): se la reenvía el super admin. */
+export async function resendOwnerInvitationAction(id: string): Promise<ActionResult> {
+  const result = await platformRequest(`stores/${id}/resend-invitation`, { method: 'POST' })
+
+  if (!result.ok) return failure(result)
+
   return { ok: true }
 }

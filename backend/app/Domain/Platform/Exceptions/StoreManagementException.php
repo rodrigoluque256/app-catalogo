@@ -23,6 +23,11 @@ final class StoreManagementException extends DomainValidationException
         return new self('La tienda está borrada: restaurala antes de cambiar su estado.', 'status');
     }
 
+    public static function noPendingInvitation(): self
+    {
+        return new self('El dueño ya aceptó la invitación: si olvidó su contraseña, puede pedir un link desde el login.', 'store');
+    }
+
     public static function notDeleted(): self
     {
         return new self('La tienda no está borrada.', 'store');

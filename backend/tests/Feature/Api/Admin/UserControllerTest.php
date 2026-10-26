@@ -2,10 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Application\Auth\Notifications\ResetPasswordLink;
+use App\Application\Auth\Notifications\UserInvitation;
+use App\Application\User\Actions\DeleteUserAction;
+use App\Application\User\Actions\UpdateUserAction;
+use App\Domain\Auth\Exceptions\UserManagementException;
+use App\Domain\Shared\Tenancy\TenantContext;
 use App\Domain\Store\Models\Store;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 
 beforeEach(function (): void {
     $this->seed(RolesAndPermissionsSeeder::class);
@@ -50,22 +57,23 @@ describe('GET /api/v1/admin/users', function (): void {
 });
 
 describe('POST /api/v1/admin/users', function (): void {
-    it('creates a user in the store with a one-time temporary password that must be changed', function (): void {
+    it('invites the user by email instead of returning a temporary password', function (): void {
+        Notification::fake();
         actingAsStoreUser($this->store, 'owner');
 
         $response = $this->postJson('/api/v1/admin/users', ['name' => 'Ana', 'email' => 'ANA@Tienda.test', 'role' => 'editor'])
             ->assertCreated()
             ->assertJsonPath('data.email', 'ana@tienda.test')
             ->assertJsonPath('data.role', 'editor')
-            ->assertJsonPath('data.must_change_password', true);
+            ->assertJsonPath('data.invitation_pending', true)
+            ->assertJsonPath('data.must_change_password', false);
 
-        $temporary = $response->json('data.temporary_password');
         $created = User::query()->where('email', 'ana@tienda.test')->firstOrFail();
 
-        expect($temporary)->toBeString()->toHaveLength(14)
+        expect($response->json('data'))->not->toHaveKey('temporary_password')
             ->and($created->store_id)->toBe($this->store->id)
-            ->and(Hash::check($temporary, $created->password))->toBeTrue()
-            ->and($created->password)->not->toBe($temporary);
+            ->and($created->invitation_accepted_at)->toBeNull();
+        Notification::assertSentTo($created, UserInvitation::class, fn (UserInvitation $mail): bool => $mail->storeName === $this->store->name);
     });
 
     it('rejects a duplicate email (even from another store) and invalid roles', function (): void {
@@ -150,18 +158,30 @@ describe('tenant isolation', function (): void {
 });
 
 describe('POST /api/v1/admin/users/{id}/reset-password', function (): void {
-    it('sets a new temporary password, forces a change and closes their sessions', function (): void {
+    it('emails a reset link and closes their sessions', function (): void {
+        Notification::fake();
         actingAsStoreUser($this->store, 'owner');
         $editor = userInStore($this->store, 'editor');
         $editor->createToken('t');
 
-        $temporary = $this->postJson("/api/v1/admin/users/{$editor->id}/reset-password")
-            ->assertOk()->json('data.temporary_password');
+        $this->postJson("/api/v1/admin/users/{$editor->id}/reset-password")
+            ->assertAccepted()
+            ->assertJsonPath('data.sent', 'reset');
 
-        $fresh = $editor->fresh();
-        expect(Hash::check($temporary, $fresh->password))->toBeTrue()
-            ->and($fresh->must_change_password)->toBeTrue()
-            ->and($fresh->tokens()->count())->toBe(0);
+        expect($editor->tokens()->count())->toBe(0)
+            ->and(Hash::check('password', $editor->fresh()->password))->toBeTrue(); // la contraseña no cambia hasta usar el link
+        Notification::assertSentTo($editor, ResetPasswordLink::class);
+    });
+
+    it('resends the invitation when it is still pending', function (): void {
+        Notification::fake();
+        actingAsStoreUser($this->store, 'owner');
+        $invited = userInStore($this->store, 'editor', ['invitation_accepted_at' => null]);
+
+        $this->postJson("/api/v1/admin/users/{$invited->id}/reset-password")->assertJsonPath('data.sent', 'invitation');
+
+        Notification::assertSentTo($invited, UserInvitation::class);
+        Notification::assertNotSentTo($invited, ResetPasswordLink::class);
     });
 });
 
@@ -187,13 +207,13 @@ describe('last owner protection (defense in depth)', function (): void {
     // Por la API es inalcanzable (quien administra es siempre otro dueño), pero cubre carreras entre dos dueños.
     it('refuses to demote or delete the only owner', function (): void {
         $soleOwner = userInStore($this->store, 'owner');
-        app(App\Domain\Shared\Tenancy\TenantContext::class)->set($this->store);
+        app(TenantContext::class)->set($this->store);
         $actorId = 999_999;
 
-        expect(fn () => app(App\Application\User\Actions\UpdateUserAction::class)->execute($actorId, (string) $soleOwner->id, 'X', 'editor'))
-            ->toThrow(App\Domain\Auth\Exceptions\UserManagementException::class, 'al menos un dueño');
-        expect(fn () => app(App\Application\User\Actions\DeleteUserAction::class)->execute($actorId, (string) $soleOwner->id))
-            ->toThrow(App\Domain\Auth\Exceptions\UserManagementException::class, 'al menos un dueño');
+        expect(fn () => app(UpdateUserAction::class)->execute($actorId, (string) $soleOwner->id, 'X', 'editor'))
+            ->toThrow(UserManagementException::class, 'al menos un dueño');
+        expect(fn () => app(DeleteUserAction::class)->execute($actorId, (string) $soleOwner->id))
+            ->toThrow(UserManagementException::class, 'al menos un dueño');
 
         expect(User::query()->find($soleOwner->id))->not->toBeNull();
     });
@@ -201,9 +221,9 @@ describe('last owner protection (defense in depth)', function (): void {
     it('allows it when another owner remains', function (): void {
         $first = userInStore($this->store, 'owner');
         userInStore($this->store, 'owner');
-        app(App\Domain\Shared\Tenancy\TenantContext::class)->set($this->store);
+        app(TenantContext::class)->set($this->store);
 
-        app(App\Application\User\Actions\DeleteUserAction::class)->execute(999_999, (string) $first->id);
+        app(DeleteUserAction::class)->execute(999_999, (string) $first->id);
 
         expect(User::query()->find($first->id))->toBeNull();
     });

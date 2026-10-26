@@ -23,7 +23,8 @@ const page = await (await browser.newContext({ viewport: { width: 1280, height: 
 page.on('pageerror', (e) => results.push(`PAGEERROR ${e.message}`))
 
 await step('sin sesión redirige a login', async () => {
-  await page.goto(`${base}/admin/products`)
+  // Primera visita: el dev server puede estar terminando de compilar (no es lentitud de la app).
+  await page.goto(`${base}/admin/products`, { timeout: 90_000 })
   await page.waitForURL('**/admin/login')
 })
 
@@ -146,8 +147,28 @@ await step('mi plan muestra el plan, el uso y los planes', async () => {
 
 // ---- gestión de usuarios -------------------------------------------------------------------------
 const newEmail = `e2e-${run}@demo.test`
-const strongPassword = `Clave${run}9876`
-let temporary = ''
+let editorPassword = `Clave${run}9876`
+const mailpit = process.env.MAILPIT_URL ?? 'http://mailpit:8025'
+const usedLinks = new Set()
+
+// Último link del panel que se le mandó a `to` (invitación o reseteo), leído desde Mailpit. Ignora los ya usados.
+const mailLink = async (to, path) => {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const search = await (await fetch(`${mailpit}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`)).json()
+    for (const message of search.messages ?? []) {
+      const { Text: text } = await (await fetch(`${mailpit}/api/v1/message/${message.ID}`)).json()
+      const link = text.match(new RegExp(`https?://[^\\s\\]\\)]+${path}\\?[^\\s\\]\\)]+`))?.[0]
+      if (link && !usedLinks.has(link)) {
+        usedLinks.add(link)
+        // El email apunta a PANEL_URL; el navegador del e2e entra por la misma base.
+        const url = new URL(link)
+        return `${base}${url.pathname}${url.search}`
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+  throw new Error(`no llegó el email ${path} a ${to}`)
+}
 
 const logout = async () => {
   // El indicador flotante de Next (solo dev) tapa este botón: se activa con el teclado.
@@ -161,77 +182,86 @@ const login = async (email, password) => {
   await page.getByLabel('Contraseña').fill(password)
   await page.getByRole('button', { name: 'Ingresar' }).click()
 }
+const choosePassword = async (password) => {
+  await page.getByLabel('Contraseña nueva').fill(password)
+  await page.getByLabel('Repetí la contraseña').fill(password)
+}
 
-await step('usuarios: el dueño crea un editor y ve la contraseña temporal una sola vez', async () => {
+await step('usuarios: el dueño invita a una editora por email (sin contraseña temporal)', async () => {
   await page.goto(`${base}/admin/users`)
   await page.getByLabel('Nombre', { exact: true }).fill('Editora E2E')
   await page.getByLabel('Email', { exact: true }).fill(newEmail)
-  await page.getByRole('button', { name: 'Crear usuario' }).click()
-  const code = page.locator('[role=status] code')
-  await code.waitFor()
-  temporary = (await code.innerText()).trim()
-  if (temporary.length !== 14) throw new Error(`contraseña temporal inesperada: ${temporary}`)
-  await page.getByText(newEmail).first().waitFor()
+  await page.getByRole('button', { name: 'Enviar invitación', exact: true }).click()
+  await page.getByText(`Le enviamos una invitación a ${newEmail}`).waitFor()
+  await page.getByRole('row', { name: new RegExp(`${newEmail}.*Invitación pendiente`) }).waitFor()
+  if ((await page.locator('[role=status] code').count()) !== 0) throw new Error('se mostró una contraseña temporal')
   await shot(page, '7-usuarios')
-  await page.reload()
-  if ((await page.locator('[role=status] code').count()) !== 0) throw new Error('la contraseña temporal volvió a mostrarse')
 })
 
 await step('usuarios: email duplicado muestra error', async () => {
   await page.getByLabel('Nombre', { exact: true }).fill('Otra')
   await page.getByLabel('Email', { exact: true }).fill(newEmail)
-  await page.getByRole('button', { name: 'Crear usuario' }).click()
-  await page.getByRole('alert').first().waitFor()
+  await page.getByRole('button', { name: 'Enviar invitación', exact: true }).click()
+  await page.getByText('Ya existe un usuario con ese email.').waitFor()
 })
 
-await step('primer ingreso: obliga a cambiar la contraseña y bloquea el resto del panel', async () => {
+await step('invitación: la editora elige su contraseña desde el email y entra', async () => {
   await logout()
-  await login(newEmail, temporary)
-  await page.waitForURL('**/admin/account')
-  await page.goto(`${base}/admin/products`)
-  await page.waitForURL('**/admin/account')
-  await shot(page, '8-cambio-forzado')
-})
-
-await step('cambio de contraseña: rechaza débil y acepta una buena', async () => {
-  await page.getByLabel('Contraseña temporal').fill(temporary)
-  await page.getByLabel('Nueva contraseña', { exact: true }).fill('corta1')
-  await page.getByLabel('Repetí la nueva contraseña').fill('corta1')
-  await page.getByRole('button', { name: 'Guardar contraseña' }).click()
-  await page.getByRole('alert').first().waitFor()
-  await page.getByLabel('Nueva contraseña', { exact: true }).fill(strongPassword)
-  await page.getByLabel('Repetí la nueva contraseña').fill(strongPassword)
-  await page.getByRole('button', { name: 'Guardar contraseña' }).click()
+  await page.goto(await mailLink(newEmail, '/admin/invitacion'))
+  await page.getByRole('heading', { name: 'Bienvenido a Tienda Demo' }).waitFor()
+  await choosePassword('corta1')
+  await page.getByRole('button', { name: 'Guardar y entrar' }).click()
+  // Esperar el error del campo (no cualquier alerta): React vacía el formulario cuando vuelve la respuesta.
+  await page.getByText('La contraseña debe tener al menos 10 caracteres.').waitFor()
+  await choosePassword(editorPassword)
+  await page.getByRole('button', { name: 'Guardar y entrar' }).click()
   await page.waitForURL(`${base}/admin`)
+  await shot(page, '8-invitacion-aceptada')
 })
 
 await step('el editor ve solo Productos y Categorías, y no puede administrar usuarios', async () => {
   const nav = page.getByRole('navigation', { name: 'Panel' })
   await nav.getByRole('link', { name: 'Productos' }).waitFor()
-  for (const hidden of ['Usuarios', 'Mi tienda']) {
+  for (const hidden of ['Usuarios', 'Mi tienda', 'Mi plan']) {
     if ((await nav.getByRole('link', { name: hidden }).count()) !== 0) throw new Error(`el editor ve "${hidden}"`)
   }
   await page.goto(`${base}/admin/users`)
   await page.getByText('Solo el dueño de la tienda puede administrar usuarios.').waitFor()
 })
 
-await step('resetear la clave de la editora: la anterior deja de funcionar y vuelve a ser forzada', async () => {
+await step('olvidé mi contraseña: link por email, contraseña nueva y login', async () => {
+  await logout()
+  await page.getByRole('link', { name: '¿Olvidaste tu contraseña?' }).click()
+  await page.waitForURL('**/admin/recuperar')
+  await page.getByRole('heading', { name: 'Recuperar contraseña' }).waitFor()
+  await page.getByLabel('Email').fill(newEmail)
+  await page.getByRole('button', { name: 'Enviar link' }).click()
+  await page.getByText('Si el email está registrado, te enviamos un link').waitFor()
+  await page.goto(await mailLink(newEmail, '/admin/restablecer'))
+  editorPassword = `Nueva${run}4321`
+  await choosePassword(editorPassword)
+  await page.getByRole('button', { name: 'Guardar contraseña' }).click()
+  await page.waitForURL('**/admin/login?reset=1')
+  await page.getByText('Listo, actualizamos tu contraseña.').waitFor()
+  await login(newEmail, editorPassword)
+  await page.waitForURL(`${base}/admin`)
+})
+
+await step('el dueño le manda un link de contraseña a la editora: cierra sus sesiones y el link funciona', async () => {
   await logout()
   await login('owner@demo.test', 'password')
   await page.waitForURL(`${base}/admin`)
   await page.goto(`${base}/admin/users`)
   page.once('dialog', (dialog) => dialog.accept())
-  await page.getByRole('row', { name: new RegExp(newEmail) }).getByRole('button', { name: 'Resetear clave' }).click()
-  const code = page.locator('[role=status] code')
-  await code.waitFor()
-  const reset = (await code.innerText()).trim()
+  await page.getByRole('row', { name: new RegExp(newEmail) }).getByRole('button', { name: 'Enviar link de contraseña' }).click()
+  await page.getByText(`Le enviamos a ${newEmail} un link para restablecer su contraseña.`).waitFor()
+  const link = await mailLink(newEmail, '/admin/restablecer')
   await logout()
-  await login(newEmail, strongPassword)
-  await page.getByText('Email o contraseña incorrectos.').waitFor()
-  await page.getByLabel('Contraseña').fill(reset)
-  await page.getByRole('button', { name: 'Ingresar' }).click()
-  await page.waitForURL('**/admin/account')
-  await logout()
+  await page.goto(link)
+  editorPassword = `Otra${run}5678`
+  await choosePassword(editorPassword)
+  await page.getByRole('button', { name: 'Guardar contraseña' }).click()
+  await page.waitForURL('**/admin/login?reset=1')
 })
 
 await step('cambiar rol, no poder eliminarse a uno mismo y eliminar a la editora', async () => {
@@ -249,7 +279,7 @@ await step('cambiar rol, no poder eliminarse a uno mismo y eliminar a la editora
   await page.getByRole('row', { name: new RegExp(newEmail) }).getByRole('button', { name: 'Eliminar' }).click()
   await page.getByText(newEmail).waitFor({ state: 'detached' })
   await logout()
-  await login(newEmail, strongPassword)
+  await login(newEmail, editorPassword)
   await page.getByText('Email o contraseña incorrectos.').waitFor()
   await login('owner@demo.test', 'password')
   await page.waitForURL(`${base}/admin`)

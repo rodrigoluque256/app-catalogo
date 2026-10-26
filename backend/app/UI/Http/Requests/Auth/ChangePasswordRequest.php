@@ -32,6 +32,7 @@ final class ChangePasswordRequest extends FormRequest
     public function messages(): array
     {
         return [
+            ...PasswordMessages::for(),
             'password.different' => 'La nueva contraseña debe ser distinta de la actual.',
             'password.confirmed' => 'La confirmación no coincide con la nueva contraseña.',
         ];

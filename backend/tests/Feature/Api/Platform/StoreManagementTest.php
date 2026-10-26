@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Application\Auth\Notifications\UserInvitation;
 use App\Domain\Platform\Models\PlatformAdmin;
 use App\Domain\Platform\Models\PlatformAuditLog;
 use App\Domain\Product\Models\Product;
@@ -12,6 +13,7 @@ use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
 use Laravel\Sanctum\Sanctum;
 
@@ -72,7 +74,7 @@ describe('GET /api/v1/platform/stores', function (): void {
             ->assertJsonPath('data.0.id', $new->id)
             ->assertJsonPath('data.0.products_count', 2)
             ->assertJsonPath('data.0.users_count', 2)
-            ->assertJsonPath('data.0.owners', [['name' => 'Dueño', 'email' => 'otra@tienda.test']])
+            ->assertJsonPath('data.0.owners', [['name' => 'Dueño', 'email' => 'otra@tienda.test', 'invitation_pending' => false]])
             ->assertJsonPath('data.1.id', $old->id)
             ->assertJsonPath('data.1.status', 'active');
     });
@@ -107,25 +109,46 @@ describe('GET /api/v1/platform/stores', function (): void {
 describe('POST /api/v1/platform/stores', function (): void {
     beforeEach(fn () => Sanctum::actingAs($this->admin, ['platform']));
 
-    it('creates the store and its owner with a one-time temporary password', function (): void {
+    it('creates the store and invites its owner by email', function (): void {
+        Notification::fake();
+
         $response = $this->postJson('/api/v1/platform/stores', [
             'name' => 'Ferretería Sol', 'slug' => 'Ferreteria-Sol', 'owner_name' => 'Ana', 'owner_email' => 'Ana@Sol.test',
         ])
             ->assertCreated()
             ->assertJsonPath('data.slug', 'ferreteria-sol')
             ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.owners', [['name' => 'Ana', 'email' => 'ana@sol.test']]);
+            ->assertJsonPath('data.owners', [['name' => 'Ana', 'email' => 'ana@sol.test', 'invitation_pending' => true]]);
 
         $store = Store::query()->where('slug', 'ferreteria-sol')->sole();
         expect($store->currency)->toBe('ARS'); // valores por defecto de la base
         expect(PlatformAuditLog::query()->where('action', 'store_created')->value('store_id'))->toBe($store->id);
 
-        // El dueño entra con la temporal y la API le exige cambiarla.
-        $token = $this->postJson('/api/v1/auth/login', ['email' => 'ana@sol.test', 'password' => $response->json('data.temporary_password')])
-            ->assertOk()
-            ->json('data.token');
-        withBearer($token, 'GET', '/api/v1/admin/products')->assertForbidden()->assertJsonPath('code', 'password_change_required');
+        expect($response->json('data'))->not->toHaveKey('temporary_password');
+
+        // El dueño acepta la invitación (elige su contraseña) y entra a su tienda como owner.
+        $owner = User::query()->where('email', 'ana@sol.test')->sole();
+        $token = $this->postJson('/api/v1/auth/invitation/accept', [
+            'email' => 'ana@sol.test', 'token' => sentLinkToken($owner, UserInvitation::class),
+            'password' => 'ClaveNueva123', 'password_confirmation' => 'ClaveNueva123',
+        ])->assertOk()->json('data.token');
+        withBearer($token, 'GET', '/api/v1/admin/products')->assertOk();
         withBearer($token, 'GET', '/api/v1/auth/me')->assertOk()->assertJsonPath('data.store.id', $store->id)->assertJsonPath('data.roles', ['owner']);
+    });
+
+    it('resends the invitation to owners who have not accepted yet', function (): void {
+        Notification::fake();
+        $this->postJson('/api/v1/platform/stores', ['name' => 'Sol', 'slug' => 'sol', 'owner_name' => 'Ana', 'owner_email' => 'ana@sol.test'])
+            ->assertJsonPath('data.owners.0.invitation_pending', true);
+        $store = Store::query()->where('slug', 'sol')->sole();
+
+        $this->postJson("/api/v1/platform/stores/{$store->id}/resend-invitation")
+            ->assertAccepted()
+            ->assertJsonPath('data.emails', ['ana@sol.test']);
+        Notification::assertSentTimes(UserInvitation::class, 2);
+
+        User::query()->where('email', 'ana@sol.test')->update(['invitation_accepted_at' => now()]);
+        $this->postJson("/api/v1/platform/stores/{$store->id}/resend-invitation")->assertUnprocessable();
     });
 
     it('rejects reserved, taken (also by deleted stores) and malformed slugs, and a used email', function (): void {
