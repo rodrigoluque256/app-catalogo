@@ -299,6 +299,58 @@ Precios en ARS. Anual con **40 % de descuento** (decidido 2026-10-25): anual = m
 - Los límites se exigen en las Actions (ej. crear producto por encima del límite → 422 con mensaje para subir de plan). El panel de la tienda muestra plan, uso y botón para cambiar.
 - Referencia de límites y funciones: vercatalogo.com/#planes (el gratis incluye 500 visitas).
 
+#### Comparación con vercatalogo (que cobra en USD)
+Tipo de cambio del 25/10/2026 (Ámbito, El Cronista): **oficial BNA $1.550** (venta), MEP ≈ $1.562, **tarjeta ≈ $2.015** (lo que paga de verdad un comercio argentino que contrata un servicio en dólares con tarjeta, con percepciones).
+
+| Plan | vercatalogo | En ARS al oficial ($1.550) | En ARS con tarjeta ($2.015) | **Precio propio** | vs. oficial | vs. tarjeta |
+|---|---|---|---|---|---|---|
+| Gratis | US$0 (25 productos, 500 visitas) | $0 | $0 | **$0** (25 productos) | — | — |
+| Basic | US$10 | $15.500 | $20.150 | **$10.000** | −35 % | −50 % |
+| Intermediate | US$19 | $29.450 | $38.285 | **$19.000** | −35 % | −50 % |
+| Advanced | US$36 | $55.800 | $72.540 | **$36.000** | −35 % | −50 % |
+| Unlimited | US$72 | $111.600 | $145.080 | **$72.000** | −35 % | −50 % |
+
+- Anual: vercatalogo Basic queda en US$6/mes (≈ $9.300 al oficial); el propio, en $6.000/mes equivalente.
+- Los precios propios equivalen a tomar el dólar a $1.000 (Basic ≈ US$6,45 al oficial): ~35 % más baratos al oficial y ~50 % frente a pagar en dólares con tarjeta. Es coherente: vercatalogo incluye IA, carrito, pagos online, revendedores y multimoneda, que acá no existen.
+- **Ventaja a comunicar:** precios en pesos, sin dólar tarjeta ni percepciones, cobrados por Mercado Pago.
+- Los valores de referencia cambian rápido: revisar esta tabla antes de publicar precios.
+
+### Dónde se ven los planes
+Una sola fuente de datos: endpoint público `GET /api/v1/plans` (P2.2), que alimenta:
+1. **Landing** (`/#planes` en el dominio raíz): selector mensual/anual (−40 %), tarjetas con precio, productos y qué incluye.
+2. **Registro, paso 3:** elección del plan.
+3. **Panel de la tienda:** "Mi plan", con el plan actual, el uso (ej. 18/25 productos) y el botón para cambiar.
+4. **Super panel:** plan y estado de la suscripción en el listado y el detalle de cada tienda.
+
+### Landing page (dominio raíz)
+Basada en la estructura de vercatalogo.com, pero **solo con lo que el producto hace hoy**. Va en `/` del dominio raíz, que hoy no tiene contenido (solo `/admin` y `/platform`; el proxy no lo reescribe).
+
+1. **Nav:** Inicio, Funcionalidades, Planes, Preguntas frecuentes · "Iniciar sesión" · "Crear catálogo".
+2. **Hero:** "Creá tu catálogo online y recibí pedidos por WhatsApp", subtítulo, CTA "Crear mi catálogo" y "Ver planes", ilustración flat o mockup de la tienda demo en un celular.
+3. **Cómo funciona (3 pasos):** registrate → cargá tus productos → compartí tu link.
+4. **Funcionalidades actuales** (tarjetas con ícono): catálogo con categorías, variantes (talle/color) y fotos; botón de WhatsApp con mensaje precargado; subdominio propio (`tutienda.dominio.com`); logo y colores de marca; buscador; rápida y pensada para celular; preparada para Google (SEO); accesible; usuarios con roles (dueño/editor).
+5. **Planes:** toggle mensual/anual, destacando "precios en pesos"; CTA a registro.
+6. **Preguntas frecuentes:** solo respuestas verdaderas hoy (cómo recibo pedidos, si puedo empezar gratis, si necesito programar, si puedo cambiar de plan, cómo pago).
+7. **CTA final y footer:** navegación, Términos y condiciones, Política de privacidad, contacto.
+
+- **Fuera por ahora (no existe):** asistente IA, revendedores, carrito y pagos de clientes, multimoneda, carga desde Google Sheets, Analytics/Pixel, dominio propio (entra como función de plan cuando exista), blog, marca de agua, API.
+- **Sin cifras ni testimonios inventados** ("más de 100.000 negocios", reseñas de "cliente verificado"): se agregan cuando haya clientes reales y con su permiso.
+- **Requisitos:** WCAG 2.2 AA (axe en el e2e), SEO del dominio raíz (metadatos, Open Graph, sitemap y robots), mobile-first, paleta "Quiet Modern".
+- **Páginas legales** `/terminos` y `/privacidad`: necesarias para el registro (aceptar términos) y para Mercado Pago. Se deja una base marcada como borrador; el texto final lo valida el usuario o un profesional.
+
+#### Ilustraciones flat gratuitas
+
+| Fuente | Licencia | Atribución | Por qué |
+|---|---|---|---|
+| **unDraw** (undraw.co) | uso comercial gratuito | no | **recomendada:** SVG con color elegible (se pinta con el color de marca), estilo flat vigente |
+| Open Peeps (openpeeps.com) | CC0 | no | personas dibujadas a mano, combinables |
+| Humaaans (humaaans.com) | CC0 | no | personas modulares flat |
+| DrawKit (drawkit.com, packs gratis) | uso comercial gratuito | no | packs temáticos (compras, e-commerce) |
+| Storyset (Freepik) | gratis con atribución | **sí** | animables, pero obliga a poner el crédito |
+
+- **Propuesta:** unDraw como base, recoloreada con el color de marca, más **capturas reales de la tienda demo dentro de un marco de celular** (lo que mejor muestra un catálogo y siempre es fiel al producto).
+- Los SVG se **guardan en el repo** (`frontend/public/illustrations/`), sin hotlinking, con un README que anota fuente y licencia de cada uno. Las decorativas llevan `alt=""`.
+
 ### Cobro con Mercado Pago
 - Único medio de pago por ahora. Suscripciones recurrentes (preapproval de la API de Mercado Pago).
 - Webhook con verificación de firma e idempotente → actualiza `subscriptions`.
@@ -312,7 +364,9 @@ Precios en ARS. Anual con **40 % de descuento** (decidido 2026-10-25): anual = m
 - **Funciones:** listar tiendas (estado, plan, vencimiento, uso, dueño); crear tienda a mano (dueño con contraseña temporal); suspender/reactivar (revalidando el ISR para que deje de verse al instante); borrar (soft delete y purga diferida de datos y objetos de R2); ver estado de pago. Futuro: entrar como la tienda para soporte.
 
 ### Decisiones pendientes
-- Límites además de productos (fotos por producto, usuarios, visitas, funciones de cada plan), prueba gratuita sí/no.
+- Límites además de productos, a confirmar en P2.2. Propuesta: fotos por producto, usuarios por tienda y dominio propio desde Advanced cuando exista. Prueba gratuita sí/no.
+- **Actualización de precios en ARS** por inflación: revisión periódica (ej. trimestral) o referencia al dólar oficial con redondeo; aviso previo a los suscriptores antes de un aumento.
+- **Contenido legal** de Términos y condiciones y Política de privacidad (lo valida el usuario o un profesional).
 - Falta de pago: suspender o pasar a Gratis; cuántos días de gracia.
 - ¿Se publica la tienda antes de verificar el email?
 - Retención de datos de una tienda borrada.
@@ -377,11 +431,12 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
    - [x] **1a. Acceso:** `platform_admins`, login aparte en `/platform` con 2FA obligatoria (TOTP + códigos de recuperación), alta por consola, auditoría y panel base
    - [x] **1b. Gestión de tiendas:** listado con búsqueda y filtros, alta manual (tienda + dueño con contraseña temporal), suspender/reactivar (con revalidación ISR), borrar (soft delete, confirmando el subdominio) y restaurar, auditoría de cada acción, slugs reservados
    - [ ] Pendiente derivado: purga definitiva de tiendas borradas (datos + objetos en R2) según la retención que se decida; ver Decisiones pendientes
-2. [ ] **Planes y límites:** `plans` + `subscriptions`, límites aplicados en las Actions, plan y uso visibles en el panel. Las tiendas existentes quedan en Gratis.
+2. [ ] **Planes y límites:** `plans` + `subscriptions`, API pública `GET /api/v1/plans`, límites aplicados en las Actions, "Mi plan" (plan y uso) en el panel de la tienda, plan en el super panel. Las tiendas existentes quedan en Gratis.
 3. [ ] **Email transaccional:** recuperación de contraseña, verificación de email e invitaciones (requiere configurar mail).
-4. [ ] **Registro público en 3 pasos** con Turnstile y plan Gratis.
-5. [ ] **Mercado Pago:** checkout de planes pagos, webhook, cambio de plan, suspensión automática por falta de pago.
-6. Resto:
+4. [ ] **Landing page + páginas legales** (ver [Landing page](#landing-page-dominio-raíz)): hero, cómo funciona, funcionalidades actuales, planes desde la API, FAQ, términos y privacidad, ilustraciones unDraw y capturas de la demo. Antes del registro porque es la puerta de entrada y el registro enlaza a los términos; hasta que haya registro, el CTA lleva a contacto.
+5. [ ] **Registro público en 3 pasos** con Turnstile y plan Gratis.
+6. [ ] **Mercado Pago:** checkout de planes pagos, webhook, cambio de plan, suspensión automática por falta de pago.
+7. Resto:
    - [ ] Sync de variantes que conserve IDs (prerequisito del carrito)
    - [ ] Paginación en home/categorías y productos de subcategorías
    - [ ] Dominios propios (`custom_domain`), como función de plan
@@ -403,3 +458,4 @@ En este orden (ver [Visión de producto](#visión-de-producto-saas)):
 | 2026-10-25 | P1: skeleton loaders en storefront (home, categoría, producto, búsqueda) y panel (dashboard, listados y formularios), accesibles; 5 tests nuevos de Vitest (38/38), build y e2e 20/20 OK. Rama `P1_skeleton_loaders`. P1: fuente Geist + Geist Mono con `next/font` (rama `P1_fuente_inter_geist_next_font`); typecheck, Vitest 38/38, build y e2e 20/20 OK. P1: SEO (robots, sitemap, canonical, Open Graph) en rama `P1_SEO_sitemap_robots_open_graph`; Vitest 43/43, build, curl y e2e 20/20 OK. P1: auditoría WCAG 2.2 AA con axe integrada al e2e (rama `P1_auditoria_WCAG`): primera corrida con violaciones de contraste, label y skip link; corregidas → a11y 27/27, e2e 20/20, Vitest 45/45, build OK. P1: decisión registrada: ni shadcn/ui ni TanStack Query por ahora (motivos y disparadores en Decisiones). P1: prueba contra R2 real (rama `P1_probar_contra_R2_real`): credenciales, URL pública r2.dev, CORS, subida de imagen de producto y logo desde el panel y visualización en la tienda vía `next/image`, todo OK; objetos y productos de prueba borrados. `IMAGE_HOSTS` en `frontend/.env.local`, e2e aislado de R2, login del e2e de a11y tolerante al throttle (fallaba en corridas rápidas); e2e 47/47 OK. Visión de producto SaaS registrada (registro en 3 pasos con Turnstile, planes en ARS, Mercado Pago, super panel con acceso aparte) y P2 reordenado; el deploy pasa al final. Plan anual con 40 % de descuento decidido, con precios por plan. |
 | 2026-10-26 | P2.1a: acceso al super panel (rama `P2_alta_tiendas_y_panel_super_admin`): tabla `platform_admins` y `platform_audit_logs`, login en dos pasos con token de desafío, 2FA TOTP obligatoria con QR y 8 códigos de recuperación, throttle propio, comando `platform:admin`, páginas `/platform/*` con cookies propias y cliente HTTP común (`lib/server-api.ts`). Arreglos: reintento del login en a11y.e2e (el aviso viejo confundía la espera) y botón de cerrar sesión tapado por el indicador de Next en dev. Pest 108/108, PHPStan OK, Vitest 51/51, build OK, e2e 20 + 27 + 9 OK. |
 | 2026-10-26 | P2.1b: gestión de tiendas en el super panel: listado (búsqueda, filtros, dueños y conteos), alta de tienda + dueño con contraseña temporal, suspender/reactivar, borrar con confirmación del subdominio y restaurar (vuelve suspendida), slugs reservados, auditoría. Corregido: `RevalidateStorefront` ignoraba tiendas inactivas, así que suspender no habría apagado la tienda cacheada (nuevo `RevalidatesRegardlessOfStatus`). Pest 117/117, PHPStan OK, Vitest 54/54, build OK, e2e 20 + 27 + 14 OK, prueba real en dev 200 → 404 → 200 → 404. |
+| 2026-10-26 | Planificación (sin código): comparación de precios con vercatalogo convertida a ARS (oficial $1.550 y tarjeta ≈ $2.015 al 25/10/2026: los propios quedan −35 % / −50 %), dónde se ven los planes (API pública única), landing page del dominio raíz basada en vercatalogo pero solo con funciones reales y sin testimonios inventados, páginas legales, ilustraciones flat gratuitas (unDraw recomendada). P2 reordenado: la landing entra como punto 4, antes del registro. |
